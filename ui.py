@@ -264,8 +264,14 @@ class RichYDLLogger:
         pass
 
     def warning(self, msg: str):
-        if "upload date is not in range" not in msg:
-            self.console.print(f"[yellow]Aviso:[/yellow] {msg}")
+        if "upload date is not in range" in msg:
+            return
+        if "No supported JavaScript runtime could be found" in msg:
+            self.console.print(
+                "[dim yellow]ℹ Nota: Nenhum motor JavaScript detetado (Node.js/Deno). A utilizar clientes alternativos.[/dim yellow]"
+            )
+            return
+        self.console.print(f"[yellow]Aviso:[/yellow] {msg}")
 
     def error(self, msg: str):
         self.console.print(f"[red]Erro:[/red] {msg}")

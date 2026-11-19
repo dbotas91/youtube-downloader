@@ -48,6 +48,8 @@ class YouTubeDownloader:
             "updatetime": True,
             "quiet": True,
             "no_warnings": False,
+            # Suportar qualquer motor JavaScript disponível no sistema
+            "js_runtimes": {"deno": {}, "node": {}, "quickjs": {}, "bun": {}},
         }
 
         # Filtro de data (se fornecido e aplicável)
