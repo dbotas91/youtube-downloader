@@ -274,4 +274,15 @@ class RichYDLLogger:
         self.console.print(f"[yellow]Aviso:[/yellow] {msg}")
 
     def error(self, msg: str):
-        self.console.print(f"[red]Erro:[/red] {msg}")
+        if "rate-limited by YouTube" in msg:
+            self.console.print(
+                "\n[bold red]⚠ Rate-limit do YouTube:[/bold red] [yellow]A tua sessão foi temporariamente limitada pelo YouTube (pode durar até 1 hora).[/yellow]\n"
+                "[dim]A aplicação continuará automaticamente para o próximo vídeo com uma pausa.[/dim]\n"
+            )
+        elif "Video unavailable" in msg or "content isn't available" in msg:
+            vid_id = msg.split(":")[0].strip() if ":" in msg else "desconhecido"
+            self.console.print(
+                f"[dim red]✗ Vídeo indisponível[/dim red] [dim]({vid_id})[/dim]"
+            )
+        else:
+            self.console.print(f"[red]Erro:[/red] {msg}")

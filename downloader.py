@@ -47,9 +47,13 @@ class YouTubeDownloader:
             # Manter a data de modificação original do ficheiro igual à data de upload
             "updatetime": True,
             "quiet": True,
-            "no_warnings": False,
+            "no_warnings": True,  # suprimir avisos de JS runtime e outros ruídos
             # Suportar qualquer motor JavaScript disponível no sistema
             "js_runtimes": {"deno": {}, "node": {}, "quickjs": {}, "bun": {}},
+            # Pausa entre pedidos para evitar rate-limit do YouTube (2 a 5 segundos)
+            "sleep_interval_requests": 2,
+            "sleep_interval": 2,
+            "max_sleep_interval": 5,
         }
 
         # Filtro de data (se fornecido e aplicável)
