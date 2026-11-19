@@ -1,33 +1,136 @@
-# 📺 YouTube Channel Backup - Downloader
+# 📺 YouTube Channel Backup — Downloader
 
-Aplicação em Python para descarregar vídeos do teu canal do YouTube, organizando-os automaticamente em subpastas por data de publicação (**AAAA-MM**).
-
----
-
-## ✨ Características
-
-* **Modos Flexíveis de Transferência:**
-  * **Canal Completo (Tudo):** Descarrega todos os uploads do canal.
-  * **Vídeo Individual:** Descarrega um vídeo específico a partir do link ou ID.
-  * **Filtro por Ano:** Descarrega apenas os vídeos publicados num determinado ano (ex: `2024`).
-  * **Filtro por Mês:** Descarrega os vídeos publicados num determinado mês (ex: `2024-11` ou `11/2024`).
-  * **Filtro por Dia Específico:** Descarrega os vídeos de um dia exato (ex: `2024-11-19` ou `19/11/2024`).
-* **Organização Automática por Data (AAAA-MM):** Qualquer vídeo descarregado é automaticamente arrumado na respetiva subpasta com base na data de upload (ex: `2024-11/Titulo_do_Video [id].mp4`).
-* **Apenas Uploads Próprios:** Foca-se na aba `/videos` do canal, ignorando playlists de terceiros e evitando duplicações.
-* **Prevenção de Duplicados:** Utiliza um ficheiro de registo permanente (`downloaded_archive.txt`). Em execuções futuras, **ignora vídeos já descarregados**.
-* **Máxima Qualidade (MP4):** Seleciona o melhor fluxo de vídeo e áudio, convertendo/unindo em formato `.mp4` com FFmpeg.
-* **Suporte a WSL e Windows:** Deteta e permite gravar diretamente na pasta `Vídeos` do utilizador Windows (`/mnt/c/Users/dapb/Videos/YouTube_Backups`) ou no WSL/Linux.
-* **Vídeos Privados / Restritos:** Opção de carregar cookies de sessão do teu navegador (Chrome, Firefox, Edge, etc.) para transferir vídeos privados ou não listados.
+Aplicação em Python para descarregar vídeos do teu canal do YouTube, organizando-os automaticamente em subpastas por ano e mês de publicação (`AAAA-MM`).
 
 ---
 
-## 🚀 Como Executar
+## ✨ Funcionalidades
 
-Entra na pasta do projeto e executa o script de inicialização:
+| Modo | Descrição |
+|------|-----------|
+| **Canal Completo** | Descarrega todos os uploads do canal |
+| **Vídeo Individual** | Descarrega um vídeo específico por link ou ID |
+| **Filtro por Ano** | Apenas vídeos de um ano (ex: `2024`) |
+| **Filtro por Mês** | Apenas vídeos de um mês (ex: `2024-11` ou `11/2024`) |
+| **Filtro por Dia** | Apenas vídeos de um dia exato (ex: `19/11/2024`) |
+
+**Sempre que um vídeo é descarregado**, é automaticamente guardado na subpasta correspondente à data de publicação:
+
+```
+<pasta destino>/
+  2024-03/
+    Título do Vídeo [abc123].mp4
+  2024-11/
+    Outro Vídeo [xyz789].mp4
+```
+
+Outras características:
+- **Sem duplicados** — registo permanente em `downloaded_archive.txt`; vídeos já descarregados são ignorados automaticamente em execuções futuras
+- **Máxima qualidade (MP4)** — combina o melhor fluxo de vídeo e áudio via FFmpeg
+- **Apenas uploads próprios** — foca-se na aba `/videos` do canal, ignorando playlists de terceiros
+- **Vídeos privados / não listados** — suporte a importação de cookies de sessão do browser (Chrome, Firefox, Edge, etc.)
+- **Anti rate-limit** — pausa automática entre pedidos para não ser bloqueado pelo YouTube
+- **Suporte a WSL / Windows / Linux** — deteta automaticamente a pasta `Vídeos` do utilizador Windows em ambientes WSL
+
+---
+
+## 🛠 Pré-requisitos
+
+| Ferramenta | Versão mínima | Notas |
+|-----------|--------------|-------|
+| Python | 3.12+ | Incluído no Ubuntu 24.04 |
+| FFmpeg | qualquer | Necessário para juntar vídeo + áudio |
+| pip | qualquer | Para instalar dependências Python |
+
+> [!NOTE]
+> Instalar o Node.js (`sudo apt install nodejs`) é opcional mas recomendado: elimina o aviso de *JS runtime* e garante acesso a todos os formatos de qualidade.
+
+---
+
+## 🚀 Instalação e Primeira Execução
+
+```bash
+# 1. Clonar o repositório
+git clone git@github.com:<utilizador>/youtube-downloader.git
+cd youtube-downloader
+
+# 2. Criar o ambiente virtual e instalar dependências
+python3 -m venv .venv --without-pip
+curl -sSL https://bootstrap.pypa.io/get-pip.py | .venv/bin/python3
+.venv/bin/pip install -r requirements.txt
+
+# 3. Executar
+./run.sh
+```
+
+---
+
+## ▶️ Utilização do Dia-a-Dia
 
 ```bash
 cd ~/Projetos/youtube-downloader
 ./run.sh
 ```
 
-*(Em alternativa, pode ativar o ambiente virtual manualmente com `source .venv/bin/activate && python3 main.py`).*
+Ou manualmente:
+```bash
+source .venv/bin/activate
+python3 main.py
+```
+
+**Para interromper a qualquer momento:** `Ctrl + C`
+
+> [!TIP]
+> Para executar em segundo plano e poder fechar o terminal, usa o Tmux:
+> ```bash
+> tmux new -s yt
+> ./run.sh
+> # Para largar sem parar: Ctrl+a d
+> # Para voltar: tmux attach -t yt
+> ```
+
+---
+
+## 🗂 Exemplos de Entradas Aceites
+
+| Campo | Exemplos válidos |
+|-------|----------------|
+| Canal | `@MeuCanal`, `https://www.youtube.com/@MeuCanal`, `MeuCanal` |
+| Vídeo individual | `https://www.youtube.com/watch?v=abc123`, `abc123` |
+| Ano | `2024` |
+| Mês | `2024-11`, `11/2024` |
+| Dia | `2024-11-19`, `19/11/2024`, `19-11-2024` |
+
+---
+
+## ⚠️ Resolução de Problemas Comuns
+
+### Rate-limit do YouTube
+```
+ERROR: Video unavailable. The current session has been rate-limited...
+```
+O YouTube bloqueou temporariamente a tua sessão por excesso de pedidos. **Aguarda 1 hora** e volta a executar. Os vídeos já registados no histórico não serão repetidos.
+
+### Aviso de JS runtime
+```
+No supported JavaScript runtime could be found...
+```
+Instala o Node.js para eliminar definitivamente este aviso:
+```bash
+sudo apt update && sudo apt install -y nodejs
+```
+
+### Ambiente virtual sem o ficheiro `activate`
+```bash
+# Recriar o venv (preserva os pacotes instalados)
+python3 -m venv .venv --without-pip
+```
+
+### Vídeos privados não descarregados
+Ao executar `./run.sh`, na etapa de cookies escolhe **Sim** e indica o teu browser. Garante que tens sessão ativa no YouTube nesse browser.
+
+---
+
+## 📄 Licença
+
+Uso pessoal. Consulta os [Termos de Serviço do YouTube](https://www.youtube.com/t/terms) antes de distribuir conteúdo descarregado.
