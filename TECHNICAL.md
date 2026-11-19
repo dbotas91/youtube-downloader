@@ -12,6 +12,7 @@ youtube-downloader/
 ├── main.py                  # Ponto de entrada — orquestra o fluxo completo
 ├── ui.py                    # Interface de terminal (Rich) + logger personalizado
 ├── downloader.py            # Motor de download (wrapper sobre yt-dlp)
+├── inventory.py             # Motor de catálogo e exportação (.md, .json, .csv)
 ├── config.py                # Constantes, templates de caminho e parsers de datas
 ├── run.sh                   # Script de arranque (ativa venv + executa main.py)
 ├── requirements.txt         # Dependências Python
@@ -28,13 +29,18 @@ flowchart TD
     C -->|modo 1| D["prompt_channel_url()"]
     C -->|modo 2| E["prompt_video_url()"]
     C -->|modos 3-5| F["prompt_channel_url() +\nprompt_filter_year/month/day()"]
-    D & E & F --> G["prompt_destination_dir()"]
+    C -->|modos 6-8| N["prompt_channel_url() +\nprompt_filter_month/range() +\nprompt_export_format()"]
+    D & E & F & N --> G["prompt_destination_dir()"]
     G --> H["prompt_cookies()"]
     H --> I["show_summary() + Confirm"]
-    I --> J["YouTubeDownloader()"]
+    I -->|modos 1-5| J["YouTubeDownloader()"]
+    I -->|modos 6-8| O["ChannelInventory()"]
     J -->|modo 2| K["download_single_video()"]
-    J -->|outros| L["download_channel()"]
+    J -->|modos 1, 3-5| L["download_channel()"]
     K & L --> M["yt_dlp.YoutubeDL.download()"]
+    O --> P["load_channel_videos()"]
+    P --> Q["filter_month/range() +\ngroup_by_month() (ordem crescente)"]
+    Q --> R["export_inventory()\n(.md, .json, .csv)"]
 ```
 
 ---
@@ -54,11 +60,41 @@ Responsável por constantes globais e validação/normalização de entradas de 
 | `normalize_channel_url(str)` | função | Normaliza o input do canal para `https://www.youtube.com/@X/videos` |
 | `normalize_video_url(str)` | função | Normaliza ID ou link de vídeo individual |
 | `parse_year(str)` | função | Devolve `(start_YYYYMMDD, end_YYYYMMDD, label)` |
-| `parse_month(str)` | função | Aceita `AAAA-MM` ou `MM/AAAA`, trata anos bissextos |
+| `parse_month(str)` | função | Aceita `AAAA-MM`, `MM-AAAA`, `MM/AAAA` ou `MM.AAAA`, trata anos bissextos |
+| `parse_month_range(str, str)` | função | Valida início e fim e devolve `(start_YYYYMMDD, end_YYYYMMDD, lbl_inicio, lbl_fim)` |
 | `parse_day(str)` | função | Aceita `AAAA-MM-DD`, `DD/MM/AAAA`, `AAAAAAMMDD` |
+| `get_channel_slug(str)` | função | Extrai identificador seguro do canal para nomes de ficheiros |
 
 > [!NOTE]
-> O range de anos válidos está limitado a `2005–2035` em `parse_year()` e `parse_month()`. Ajusta se necessário.
+> O range de anos válidos está limitado a `2005–2035` em `parse_year()`, `parse_month()` e `parse_month_range()`. Ajusta se necessário.
+
+---
+
+### `inventory.py`
+
+Módulo dedicado a catalogar, listar e exportar os vídeos do canal sem descarregar os ficheiros multimédia (`skip_download=True`).
+
+#### Classe `ChannelInventory`
+
+```python
+ChannelInventory(
+    cookie_browser: Optional[str] = None,
+    logger: Optional[Any] = None,
+)
+```
+
+**Principais métodos:**
+
+| Método | Descrição |
+|---|---|
+| `load_channel_videos(channel_url, date_range, progress_callback)` | Extrai metadados de todos os vídeos do canal com ordenação cronológica crescente |
+| `filter_month(videos, month_label)` | Filtra vídeos de um mês específico (`AAAA-MM`) |
+| `filter_range(videos, start_month, end_month)` | Filtra vídeos dentro de um intervalo de meses |
+| `group_by_month(videos)` | Agrupa vídeos num dicionário por mês (`AAAA-MM`) mantendo ordem crescente |
+| `export_markdown(grouped, output_file, channel_name, filter_desc)` | Gera ficheiro `.md` estruturado com tabela e sumário |
+| `export_json(grouped, output_file, channel_name, filter_desc)` | Gera ficheiro `.json` com metadados e estatísticas |
+| `export_csv(grouped, output_file)` | Gera ficheiro `.csv` em UTF-8-BOM compatível com Excel |
+| `export_inventory(...)` | Ponto de entrada unificado que exporta no formato pretendido (`md`, `json`, `csv` ou `all`) |
 
 ---
 

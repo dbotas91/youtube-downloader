@@ -70,10 +70,10 @@ def parse_year(year_str: str) -> tuple[str, str, str]:
 
 def parse_month(month_str: str) -> tuple[str, str, str]:
     """
-    Valida e converte um mês nos formatos AAAA-MM ou MM/AAAA.
+    Valida e converte um mês nos formatos AAAA-MM, MM-AAAA, MM/AAAA ou MM.AAAA.
     Retorna: (data_inicio_AAAAMMDD, data_fim_AAAAMMDD, rotulo_AAAA-MM)
     """
-    val = month_str.strip().replace("/", "-")
+    val = month_str.strip().replace("/", "-").replace(".", "-")
     parts = val.split("-")
     if len(parts) == 2:
         p1, p2 = parts[0].strip(), parts[1].strip()
@@ -92,8 +92,43 @@ def parse_month(month_str: str) -> tuple[str, str, str]:
                 f"{year:04d}-{month:02d}",
             )
     raise ValueError(
-        "Formato de mês inválido. Use AAAA-MM (ex: 2024-11) ou MM/AAAA (ex: 11/2024)."
+        "Formato de mês inválido. Use AAAA-MM (ex: 2024-11) ou MM-AAAA (ex: 11-2024)."
     )
+
+
+def parse_month_range(start_str: str, end_str: str) -> tuple[str, str, str, str]:
+    """
+    Valida e converte dois meses para um intervalo (início e fim).
+    Retorna: (start_date_YYYYMMDD, end_date_YYYYMMDD, label_start_YYYY-MM, label_end_YYYY-MM)
+    """
+    start_date, _, label_start = parse_month(start_str)
+    _, end_date, label_end = parse_month(end_str)
+
+    if start_date > end_date:
+        raise ValueError(
+            f"O mês inicial ({label_start}) não pode ser posterior ao mês final ({label_end})."
+        )
+
+    return start_date, end_date, label_start, label_end
+
+
+def get_channel_slug(channel_input: str) -> str:
+    """
+    Extrai um nome/identificador seguro para nomes de ficheiros a partir do link ou handle do canal.
+    Exemplo: '@MeuCanal' -> 'MeuCanal'
+             'https://www.youtube.com/@CanalX/videos' -> 'CanalX'
+    """
+    import re
+
+    clean = channel_input.strip().rstrip("/")
+    if "/videos" in clean:
+        clean = clean.rsplit("/videos", 1)[0]
+    if "@" in clean:
+        slug = clean.split("@")[-1].split("/")[0]
+    else:
+        slug = clean.split("/")[-1]
+    slug = re.sub(r"[^\w\-]", "_", slug).strip("_")
+    return slug or "canal"
 
 
 def parse_day(day_str: str) -> tuple[str, str]:

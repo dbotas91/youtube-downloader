@@ -49,7 +49,13 @@ class YouTubeDownloader:
             "quiet": True,
             "no_warnings": True,  # suprimir avisos de JS runtime e outros ruídos
             # Suportar qualquer motor JavaScript disponível no sistema
-            "js_runtimes": {"deno": {}, "node": {}, "quickjs": {}, "bun": {}},
+            "js_runtimes": (
+                {"node": {"path": "/home/linuxbrew/.linuxbrew/bin/node"}}
+                if Path("/home/linuxbrew/.linuxbrew/bin/node").exists()
+                else {"deno": {}, "node": {}, "quickjs": {}, "bun": {}}
+            ),
+            # Permitir componente externo para resolver desafios JS (n challenge)
+            "remote_components": ["ejs:github"],
             # Pausa entre pedidos para evitar rate-limit do YouTube (2 a 5 segundos)
             "sleep_interval_requests": 2,
             "sleep_interval": 2,

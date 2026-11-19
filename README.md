@@ -6,13 +6,15 @@ Aplicação em Python para descarregar vídeos do teu canal do YouTube, organiza
 
 ## ✨ Funcionalidades
 
-| Modo | Descrição |
-|------|-----------|
-| **Canal Completo** | Descarrega todos os uploads do canal |
-| **Vídeo Individual** | Descarrega um vídeo específico por link ou ID |
-| **Filtro por Ano** | Apenas vídeos de um ano (ex: `2024`) |
-| **Filtro por Mês** | Apenas vídeos de um mês (ex: `2024-11` ou `11/2024`) |
-| **Filtro por Dia** | Apenas vídeos de um dia exato (ex: `19/11/2024`) |
+### 📥 Transferência de Vídeos (MP4)
+
+| Opção | Modo | Descrição |
+|:---:|------|-----------|
+| **1** | **Canal Completo** | Descarrega todos os uploads do canal |
+| **2** | **Vídeo Individual** | Descarrega um vídeo específico por link ou ID |
+| **3** | **Filtrar por Ano** | Apenas vídeos de um ano (ex: `2024`) |
+| **4** | **Filtrar por Mês** | Apenas vídeos de um mês (ex: `2024-11` ou `11-2024`) |
+| **5** | **Filtrar por Dia** | Apenas vídeos de um dia exato (ex: `19/11/2024`) |
 
 **Sempre que um vídeo é descarregado**, é automaticamente guardado na subpasta correspondente à data de publicação:
 
@@ -23,6 +25,22 @@ Aplicação em Python para descarregar vídeos do teu canal do YouTube, organiza
   2024-11/
     Outro Vídeo [xyz789].mp4
 ```
+
+### 📋 Listagem e Catálogo de Vídeos (Sem Download)
+
+Permite indexar e catalogar os vídeos do canal organizados em ordem cronológica crescente, exportando para o formato que preferires:
+
+| Opção | Modo | Descrição |
+|:---:|------|-----------|
+| **6** | **Listar Mês Específico** | Exporta a lista de vídeos de um mês (ex: `11-2024`) |
+| **7** | **Listar Intervalo de Meses** | Exporta os vídeos de um intervalo (ex: `09-2024` a `12-2024`) |
+| **8** | **Listar Todos Agrupados** | Exporta todos os vídeos do canal separados e agrupados por mês |
+
+**Formatos de exportação suportados:**
+- **Markdown (`.md`)** — Ideal para visualização direta, leitura humana, GitHub e notas (Obsidian) com índice por mês e links diretos.
+- **JSON (`.json`)** — Ideal para integrações, scripts de automação, APIs e preservação completa de metadados estruturados.
+- **CSV (`.csv`)** — Ideal para abrir diretamente no Excel ou Google Sheets (com codificação UTF-8-BOM) para filtros e ordenação manual.
+- **Todos (`md, json, csv`)** — Exporta os 3 ficheiros em simultâneo com nomes descritivos (ex: `catalogo_OSeuCanal_09-2024_a_12-2024.md`).
 
 Outras características:
 - **Sem duplicados** — registo permanente em `downloaded_archive.txt`; vídeos já descarregados são ignorados automaticamente em execuções futuras
