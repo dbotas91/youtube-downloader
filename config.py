@@ -1,4 +1,6 @@
 import os
+import calendar
+from datetime import datetime
 from pathlib import Path
 
 # Diretórios base
@@ -9,7 +11,8 @@ ARCHIVE_FILE = BASE_DIR / "downloaded_archive.txt"
 # Estrutura de saída dos ficheiros:
 # Cria a pasta AAAA-MM automaticamente com base na data de upload do vídeo
 # Exemplo: /pasta_destino/2026-11/Titulo_do_Video [id].mp4
-OUTPUT_TEMPLATE = "%(upload_date>%Y-%m)s/%(title)s [%(id)s].%(ext)s"
+OUTPUT_TEMPLATE = "%(upload_date>%Y-%m|sem-data)s/%(title)s [%(id)s].%(ext)s"
+
 
 def normalize_channel_url(channel_input: str) -> str:
     """
@@ -17,7 +20,7 @@ def normalize_channel_url(channel_input: str) -> str:
     evitando playlists ou conteúdos de terceiros.
     """
     url = channel_input.strip()
-    
+
     # Se o utilizador apenas digitou o handle (ex: @OSeuCanal)
     if url.startswith("@"):
         url = f"https://www.youtube.com/{url}"
@@ -31,7 +34,82 @@ def normalize_channel_url(channel_input: str) -> str:
     url = url.rstrip("/")
 
     # Se ainda não apontar para /videos, garante que aponta
-    if not url.endswith("/videos") and not url.endswith("/shorts") and not url.endswith("/streams"):
+    if (
+        not url.endswith("/videos")
+        and not url.endswith("/shorts")
+        and not url.endswith("/streams")
+    ):
         url = f"{url}/videos"
 
     return url
+
+
+def normalize_video_url(video_input: str) -> str:
+    """
+    Normaliza o link ou ID de um vídeo específico.
+    Suporta links diretos, shorts, youtu.be ou ID direto de 11 caracteres.
+    """
+    url = video_input.strip()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = f"https://www.youtube.com/watch?v={url}"
+    return url
+
+
+def parse_year(year_str: str) -> tuple[str, str, str]:
+    """
+    Valida e converte um ano no formato AAAA.
+    Retorna: (data_inicio_AAAAMMDD, data_fim_AAAAMMDD, rotulo)
+    """
+    val = year_str.strip()
+    if val.isdigit() and len(val) == 4:
+        year = int(val)
+        if 2005 <= year <= 2035:
+            return f"{year:04d}0101", f"{year:04d}1231", str(year)
+    raise ValueError("Ano inválido. Introduza um ano com 4 dígitos (ex: 2024).")
+
+
+def parse_month(month_str: str) -> tuple[str, str, str]:
+    """
+    Valida e converte um mês nos formatos AAAA-MM ou MM/AAAA.
+    Retorna: (data_inicio_AAAAMMDD, data_fim_AAAAMMDD, rotulo_AAAA-MM)
+    """
+    val = month_str.strip().replace("/", "-")
+    parts = val.split("-")
+    if len(parts) == 2:
+        p1, p2 = parts[0].strip(), parts[1].strip()
+        if len(p1) == 4 and p1.isdigit() and p2.isdigit():
+            year, month = int(p1), int(p2)
+        elif len(p2) == 4 and p2.isdigit() and p1.isdigit():
+            year, month = int(p2), int(p1)
+        else:
+            raise ValueError("Formato inválido.")
+
+        if 1 <= month <= 12 and 2005 <= year <= 2035:
+            last_day = calendar.monthrange(year, month)[1]
+            return (
+                f"{year:04d}{month:02d}01",
+                f"{year:04d}{month:02d}{last_day:02d}",
+                f"{year:04d}-{month:02d}",
+            )
+    raise ValueError(
+        "Formato de mês inválido. Use AAAA-MM (ex: 2024-11) ou MM/AAAA (ex: 11/2024)."
+    )
+
+
+def parse_day(day_str: str) -> tuple[str, str]:
+    """
+    Valida e converte um dia nos formatos AAAA-MM-DD ou DD/MM/AAAA.
+    Retorna: (data_AAAAMMDD, rotulo_legivel)
+    """
+    val = day_str.strip()
+    formats = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%Y%m%d"]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(val, fmt)
+            if 2005 <= dt.year <= 2035:
+                return dt.strftime("%Y%m%d"), dt.strftime("%d/%m/%Y")
+        except ValueError:
+            continue
+    raise ValueError(
+        "Formato de dia inválido. Use AAAA-MM-DD (ex: 2024-11-19) ou DD/MM/AAAA (ex: 19/11/2024)."
+    )
