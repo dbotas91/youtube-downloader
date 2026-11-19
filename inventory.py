@@ -9,23 +9,8 @@ import yt_dlp
 from yt_dlp.utils import DateRange
 
 import config
-
-
-def format_duration(seconds: Optional[int]) -> str:
-    """
-    Formata segundos para o formato legível HH:MM:SS ou MM:SS.
-    """
-    if seconds is None:
-        return "N/D"
-    try:
-        s = int(seconds)
-        m, sec = divmod(s, 60)
-        h, m = divmod(m, 60)
-        if h > 0:
-            return f"{h:d}:{m:02d}:{sec:02d}"
-        return f"{m:02d}:{sec:02d}"
-    except (ValueError, TypeError):
-        return "N/D"
+from config import format_duration
+from youtube_api import YouTubeAPIClient
 
 
 class ChannelInventory:
@@ -37,9 +22,11 @@ class ChannelInventory:
 
     def __init__(
         self,
+        api_key: Optional[str] = None,
         cookie_browser: Optional[str] = None,
         logger: Optional[Any] = None,
     ):
+        self.api_key = api_key
         self.cookie_browser = cookie_browser
         self.logger = logger
 
@@ -64,6 +51,9 @@ class ChannelInventory:
 
         if date_range is not None:
             opts["daterange"] = date_range
+            # Interrompe a extração assim que encontrar vídeos anteriores à data mínima,
+            # poupando centenas de pedidos desnecessários e evitando rate-limit
+            opts["break_on_reject"] = True
 
         if self.logger:
             opts["logger"] = self.logger
@@ -77,9 +67,19 @@ class ChannelInventory:
         progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Extrai a lista de vídeos do canal através do yt-dlp sem descarregar os fluxos de vídeo.
+        Extrai a lista de vídeos do canal (via YouTube Data API v3 se configurada, ou yt-dlp).
         Retorna a lista de vídeos já ordenada em ordem cronológica crescente.
         """
+        # Se foi fornecida uma chave de API, utilizar a YouTube Data API v3 oficial (Opção B)
+        if self.api_key:
+            client = YouTubeAPIClient(self.api_key)
+            return client.fetch_videos(
+                channel_input=channel_url,
+                date_range=date_range,
+                progress_callback=progress_callback,
+            )
+
+        # Caso contrário, recorrer ao yt-dlp (com cookies e break_on_reject se configurados)
         normalized_url = config.normalize_channel_url(channel_url)
         opts = self._get_ydl_options(date_range=date_range)
 

@@ -253,26 +253,114 @@ def prompt_destination_dir() -> Path:
     return destino
 
 
-def prompt_cookies() -> Optional[str]:
-    console.print("\n[bold]4. Vídeos Privados ou Restritos[/bold]")
-    tem_privados = Confirm.ask(
-        "O canal/vídeo contém itens [bold]privados[/bold] que necessitam de login?",
-        default=False,
+def prompt_inventory_method(saved_key: Optional[str] = None) -> Tuple[str, Optional[str], Optional[str]]:
+    """
+    Pergunta ao utilizador qual o motor que pretende usar para indexar o canal.
+    Opção B: YouTube Data API v3 (Oficial Google, sem scraping nem rate-limit)
+    Opção C: yt-dlp com Cookies do Navegador (Sessão do canal)
+    Opção Padrão: yt-dlp Anónimo
+    Retorna: (motor: 'api' | 'cookies' | 'scraper', api_key, cookie_browser)
+    """
+    console.print("\n[bold]Método de Indexação do Canal (Anti Rate-Limit)[/bold]")
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Opção", style="cyan", width=6)
+    table.add_column("Método", style="bold white", width=26)
+    table.add_column("Vantagens", style="dim")
+
+    api_extra = " (Chave guardada no .env detetada ✔)" if saved_key else " (Requer chave API do Google Cloud)"
+    table.add_row(
+        "1",
+        "YouTube Data API v3" + ("[green]*[/green]" if saved_key else ""),
+        f"Oficial Google: ultra rápida, sem scraping, sem rate-limit{api_extra}",
+    )
+    table.add_row(
+        "2",
+        "yt-dlp com Cookies do Browser",
+        "Usa a tua sessão do canal (Chrome, Firefox, etc.) para evitar bloqueios de scraping",
+    )
+    table.add_row(
+        "3",
+        "yt-dlp Anónimo (Padrão)",
+        "Sem autenticação (pode ser limitado pelo YouTube se o canal tiver muitos vídeos)",
     )
 
-    if not tem_privados:
-        return None
+    console.print(table)
 
-    browsers = ["chrome", "firefox", "edge", "brave", "chromium"]
+    escolha = Prompt.ask(
+        "[yellow]Escolhe o método pretendido[/yellow]",
+        choices=["1", "2", "3"],
+        default="1" if saved_key else "2",
+    )
+
+    if escolha == "1":
+        api_key = saved_key
+        if not api_key:
+            api_key = prompt_api_key_input()
+        return "api", api_key, None
+
+    elif escolha == "2":
+        browser = prompt_browser_selection()
+        return "cookies", None, browser
+
+    else:
+        return "scraper", None, None
+
+
+def prompt_api_key_input() -> str:
+    """
+    Solicita a chave da YouTube Data API v3 ao utilizador e oferece a possibilidade de a guardar no .env.
+    """
+    console.print("\n[bold cyan]Configuração da YouTube Data API v3 (Opção B)[/bold cyan]")
     console.print(
-        "[dim]A aplicação pode importar a tua sessão diretamente de um navegador:[/dim]"
+        "[dim]Para obter uma chave gratuita (10.000 unidades/dia grátis para sempre):\n"
+        "1. Acede a https://console.cloud.google.com/ e cria um projeto\n"
+        "2. Ativa a 'YouTube Data API v3'\n"
+        "3. Em 'Credenciais', cria uma 'Chave de API'[/dim]\n"
+    )
+
+    while True:
+        key = Prompt.ask("[yellow]Introduz a tua chave de API do YouTube (Google Cloud)[/yellow]")
+        if key.strip():
+            api_key = key.strip()
+            if Confirm.ask("[yellow]Guardar esta chave no ficheiro .env para não teres de repetir?[/yellow]", default=True):
+                config.save_api_key(api_key)
+                console.print("[green]✔ Chave guardada no .env com sucesso![/green]")
+            return api_key
+        console.print("[red]A chave de API não pode estar vazia![/red]")
+
+
+def prompt_browser_selection() -> str:
+    """
+    Permite escolher o navegador de onde importar os cookies de sessão.
+    """
+    browsers = ["chrome", "firefox", "edge", "brave", "chromium"]
+    console.print("\n[bold]Sessão do Navegador (Opção C)[/bold]")
+    console.print(
+        "[dim]A aplicação importará a tua sessão ativa para o YouTube não tratar os pedidos como bots anónimos.[/dim]"
     )
     browser = Prompt.ask(
-        "[yellow]De qual navegador queres usar a sessão?[/yellow]",
+        "[yellow]De qual navegador pretendes importar a sessão?[/yellow]",
         choices=browsers,
         default="chrome",
     )
     return browser
+
+
+def prompt_cookies() -> Optional[str]:
+    console.print("\n[bold]4. Autenticação e Sessão do Navegador (Opção C)[/bold]")
+    console.print(
+        "[dim]Importar a tua sessão do navegador evita rate-limits do YouTube e permite aceder a vídeos privados do teu canal.[/dim]"
+    )
+    usar_cookies = Confirm.ask(
+        "Desejas autenticar usando a sessão do teu navegador (Chrome, Firefox, etc.)?",
+        default=True,
+    )
+
+    if not usar_cookies:
+        return None
+
+    return prompt_browser_selection()
 
 
 def show_summary(
@@ -283,6 +371,7 @@ def show_summary(
     browser_cookies: Optional[str],
     is_inventory: bool = False,
     export_format: Optional[str] = None,
+    use_api: bool = False,
 ):
     console.print("\n[bold]5. Resumo da Operação[/bold]")
 
@@ -295,19 +384,20 @@ def show_summary(
     fmt_text = format_labels.get(export_format, export_format or "N/A")
 
     if is_inventory:
+        motor_desc = (
+            "YouTube Data API v3 Oficial (Google Cloud — Sem Rate-Limit)"
+            if use_api
+            else f"yt-dlp ({'Cookies de ' + browser_cookies if browser_cookies else 'Anónimo'})"
+        )
         resumo = (
             f"[bold cyan]Ação:[/bold cyan] Listar e Exportar Catálogo\n"
             f"[bold cyan]Modo:[/bold cyan] {mode_name}\n"
             f"[bold cyan]Canal:[/bold cyan] {target}\n"
+            f"[bold cyan]Motor:[/bold cyan] {motor_desc}\n"
             f"[bold cyan]Filtro:[/bold cyan] {filter_label}\n"
             f"[bold cyan]Ordenação:[/bold cyan] Cronológica crescente (antigo ➔ recente)\n"
             f"[bold cyan]Formato de Exportação:[/bold cyan] {fmt_text}\n"
             f"[bold cyan]Pasta de Destino:[/bold cyan] {dest_dir}\n"
-            f"[bold cyan]Autenticação:[/bold cyan] {
-                'Navegador ' + browser_cookies
-                if browser_cookies
-                else 'Pública (Sem login)'
-            }"
         )
     else:
         resumo = (

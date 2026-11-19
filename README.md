@@ -42,6 +42,24 @@ Permite indexar e catalogar os vídeos do canal organizados em ordem cronológic
 - **CSV (`.csv`)** — Ideal para abrir diretamente no Excel ou Google Sheets (com codificação UTF-8-BOM) para filtros e ordenação manual.
 - **Todos (`md, json, csv`)** — Exporta os 3 ficheiros em simultâneo com nomes descritivos (ex: `catalogo_OSeuCanal_09-2024_a_12-2024.md`).
 
+### 🛡️ Proteção Anti Rate-Limit (Opções B e C)
+
+Para evitar bloqueios temporários de IP em canais médios ou grandes:
+1. **Opção B — YouTube Data API v3 (Oficial Google):**
+   - Usa a API oficial do Google Cloud (10.000 requisições/dia gratuitas para sempre).
+   - Instantânea, fiável e com **0% de risco de rate-limit**.
+   - Podes definir a chave no ficheiro `.env` (`YOUTUBE_API_KEY=sua_chave`) ou inseri-la diretamente na primeira execução quando solicitada no terminal.
+2. **Opção C — Sessão do Navegador (Cookies) + Paragem Antecipada:**
+   - Importa a tua sessão do Chrome, Firefox, Edge, Brave ou Chromium para o YouTube reconhecer a tua conta de proprietário do canal.
+   - Ativação automática de `break_on_reject: True`: para listagens por mês ou intervalo, interrompe a leitura assim que sai das datas selecionadas, poupando centenas de pedidos.
+
+#### 🔑 Como obter a Chave de API Gratuita (Opção B)
+1. Acede a [console.cloud.google.com](https://console.cloud.google.com/) com a tua conta Google.
+2. Cria um novo projeto (ex: `YouTube Backup`).
+3. Em **APIs e Serviços ➔ Biblioteca**, pesquisa por **YouTube Data API v3** e clica em **Ativar**.
+4. Em **Credenciais ➔ Criar Credenciais ➔ Chave de API** (*API Key*).
+5. Copia a chave gerada e cola-a quando a aplicação perguntar (podes optar por guardá-la automaticamente no ficheiro `.env`).
+
 Outras características:
 - **Sem duplicados** — registo permanente em `downloaded_archive.txt`; vídeos já descarregados são ignorados automaticamente em execuções futuras
 - **Máxima qualidade (MP4)** — combina o melhor fluxo de vídeo e áudio via FFmpeg
@@ -116,7 +134,8 @@ python3 main.py
 | Canal | `@MeuCanal`, `https://www.youtube.com/@MeuCanal`, `MeuCanal` |
 | Vídeo individual | `https://www.youtube.com/watch?v=abc123`, `abc123` |
 | Ano | `2024` |
-| Mês | `2024-11`, `11/2024` |
+| Mês | `2024-11`, `11-2024`, `11/2024`, `11.2024` |
+| Intervalo de Meses | Inicial: `09-2024`, Final: `12-2024` |
 | Dia | `2024-11-19`, `19/11/2024`, `19-11-2024` |
 
 ---
@@ -127,7 +146,10 @@ python3 main.py
 ```
 ERROR: Video unavailable. The current session has been rate-limited...
 ```
-O YouTube bloqueou temporariamente a tua sessão por excesso de pedidos. **Aguarda 1 hora** e volta a executar. Os vídeos já registados no histórico não serão repetidos.
+O YouTube bloqueou temporariamente o teu IP por excesso de scraping anónimo.
+- **Para gerar catálogos:** Usa a **Opção B (YouTube Data API v3)** — é instantânea e imune a rate-limits.
+- **Para transferências:** Seleciona a **Opção C (Cookies do navegador)** para usar a tua sessão autenticada do canal e ativação de paragem antecipada.
+- Se já foste bloqueado pelo YouTube, aguarda cerca de 30 a 60 minutos para o IP ser libertado.
 
 ### Aviso de JS runtime
 ```

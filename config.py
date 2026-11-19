@@ -1,17 +1,74 @@
 import os
+import re
 import calendar
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 # Diretórios base
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DOWNLOAD_DIR = Path.home() / "Videos" / "YouTube_Backups"
 ARCHIVE_FILE = BASE_DIR / "downloaded_archive.txt"
+ENV_FILE = BASE_DIR / ".env"
+
+
+def _load_env_file():
+    """Carrega variáveis do ficheiro .env se presente."""
+    if ENV_FILE.exists():
+        try:
+            for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip("\"'")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+        except Exception:
+            pass
+
+
+_load_env_file()
+
+
+def get_api_key() -> Optional[str]:
+    """Devolve a chave da YouTube Data API v3 se configurada."""
+    return os.environ.get("YOUTUBE_API_KEY", "").strip() or None
+
+
+def save_api_key(key: str):
+    """Guarda a chave da YouTube Data API v3 no ficheiro .env local."""
+    key = key.strip()
+    os.environ["YOUTUBE_API_KEY"] = key
+    lines = []
+    if ENV_FILE.exists():
+        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            if not line.strip().startswith("YOUTUBE_API_KEY="):
+                lines.append(line)
+    lines.append(f"YOUTUBE_API_KEY={key}")
+    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 # Estrutura de saída dos ficheiros:
 # Cria a pasta AAAA-MM automaticamente com base na data de upload do vídeo
 # Exemplo: /pasta_destino/2026-11/Titulo_do_Video [id].mp4
 OUTPUT_TEMPLATE = "%(upload_date>%Y-%m|sem-data)s/%(title)s [%(id)s].%(ext)s"
+
+
+def format_duration(seconds: Optional[int]) -> str:
+    """
+    Formata segundos para o formato legível HH:MM:SS ou MM:SS.
+    """
+    if seconds is None:
+        return "N/D"
+    try:
+        s = int(seconds)
+        m, sec = divmod(s, 60)
+        h, m = divmod(m, 60)
+        if h > 0:
+            return f"{h:d}:{m:02d}:{sec:02d}"
+        return f"{m:02d}:{sec:02d}"
+    except (ValueError, TypeError):
+        return "N/D"
 
 
 def normalize_channel_url(channel_input: str) -> str:

@@ -65,6 +65,8 @@ class YouTubeDownloader:
         # Filtro de data (se fornecido e aplicável)
         if apply_date_filter and self.date_range is not None:
             opts["daterange"] = self.date_range
+            # Interrompe o processo assim que encontrar vídeos anteriores ao período selecionado
+            opts["break_on_reject"] = True
 
         # Se o utilizador tiver vídeos privados/não listados e quiser usar cookies do browser
         if self.cookie_browser:

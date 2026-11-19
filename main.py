@@ -6,6 +6,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 
 import ui
+import config
 from downloader import YouTubeDownloader
 from inventory import ChannelInventory
 
@@ -70,9 +71,19 @@ def main():
             console.print("[red]Opção inválida![/red]")
             sys.exit(1)
 
-        # 2. Pasta de destino e autenticação
+        # 2. Pasta de destino, autenticação e motor
         dest_dir = ui.prompt_destination_dir()
-        browser_cookies = ui.prompt_cookies()
+
+        api_key = None
+        browser_cookies = None
+        engine = "scraper"
+
+        if is_inventory:
+            engine, api_key, browser_cookies = ui.prompt_inventory_method(
+                saved_key=config.get_api_key()
+            )
+        else:
+            browser_cookies = ui.prompt_cookies()
 
         # 3. Resumo da Operação e Confirmação
         ui.show_summary(
@@ -83,6 +94,7 @@ def main():
             browser_cookies=browser_cookies,
             is_inventory=is_inventory,
             export_format=export_format,
+            use_api=(engine == "api"),
         )
 
         confirm_msg = (
@@ -97,12 +109,18 @@ def main():
 
         # 4. Execução
         if is_inventory:
-            console.print(
-                "\n[bold green]🔍 A recolher metadados e a indexar vídeos do canal...[/bold green]\n"
-            )
+            if engine == "api":
+                console.print(
+                    "\n[bold green]⚡ A consultar a YouTube Data API v3 oficial (sem rate-limit)...[/bold green]\n"
+                )
+            else:
+                console.print(
+                    "\n[bold green]🔍 A recolher metadados e a indexar vídeos do canal...[/bold green]\n"
+                )
 
             ydl_logger = ui.RichYDLLogger(console)
             inventory = ChannelInventory(
+                api_key=api_key,
                 cookie_browser=browser_cookies,
                 logger=ydl_logger,
             )
