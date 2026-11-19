@@ -74,7 +74,7 @@ class ChannelInventory:
         self,
         channel_url: str,
         date_range: Optional[DateRange] = None,
-        progress_callback: Optional[Callable[[int, str], None]] = None,
+        progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Extrai a lista de vídeos do canal através do yt-dlp sem descarregar os fluxos de vídeo.
@@ -90,10 +90,13 @@ class ChannelInventory:
             if not info:
                 return []
 
-            entries = info.get("entries") or []
+            raw_entries = info.get("entries") or []
+            entries_list = list(raw_entries)
+            total = len(entries_list)
             count = 0
 
-            for entry in entries:
+            for entry in entries_list:
+                count += 1
                 if not entry:
                     continue
 
@@ -130,9 +133,8 @@ class ChannelInventory:
                     }
                 )
 
-                count += 1
                 if progress_callback:
-                    progress_callback(count, title)
+                    progress_callback(count, total, title)
 
         # Ordenação estritamente em ordem crescente por data de publicação
         videos.sort(key=lambda v: (v["upload_date"], v["title"].lower()))

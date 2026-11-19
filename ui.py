@@ -380,8 +380,12 @@ def print_progress_hook(d: dict):
         speed = d.get("_speed_str", "N/A").strip()
         eta = d.get("_eta_str", "N/A").strip()
 
+        idx = d.get("playlist_index")
+        total = d.get("playlist_count") or d.get("n_entries")
+        item_prefix = f" [bold yellow]({idx}/{total})[/bold yellow]" if idx and total else ""
+
         console.print(
-            f"[cyan]A descarregar:[/cyan] [bold]{filename[:40]}[/bold] | "
+            f"[cyan]A descarregar{item_prefix}:[/cyan] [bold]{filename[:35]}[/bold] | "
             f"[green]{percent}[/green] a [yellow]{speed}[/yellow] (Restam: {eta})",
             end="\r",
         )

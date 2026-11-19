@@ -107,9 +107,15 @@ def main():
                 logger=ydl_logger,
             )
 
-            def progress_callback(count: int, title: str):
+            def progress_callback(count: int, total: int, title: str):
+                total_str = f"/{total}" if total else ""
+                pct_str = (
+                    f" ({int((count / total) * 100)}%)"
+                    if total and total > 0
+                    else ""
+                )
                 console.print(
-                    f"[cyan]A processar (#{count}):[/cyan] [dim]{title[:60]}[/dim]",
+                    f"[cyan]A indexar [bold]#{count}{total_str}[/bold]{pct_str}:[/cyan] [dim]{title[:55]}[/dim]",
                     end="\r",
                 )
 
