@@ -228,8 +228,18 @@ class YouTubeAPIClient:
         count = 0
         stop_pagination = False
 
-        start_bound = date_range.start if date_range else None
-        end_bound = date_range.end if date_range else None
+        # DateRange.start e .end são objetos datetime.date — converter para string YYYYMMDD
+        # para poder comparar diretamente com upload_date (que também é string YYYYMMDD)
+        start_bound = (
+            date_range.start.strftime("%Y%m%d")
+            if date_range and date_range.start
+            else None
+        )
+        end_bound = (
+            date_range.end.strftime("%Y%m%d")
+            if date_range and date_range.end
+            else None
+        )
 
         # 1. Paginação através da playlist de uploads do canal (50 itens por página = 1 unidade de quota)
         while True:
