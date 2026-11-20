@@ -1,15 +1,287 @@
 import os
 import re
+import sys
+import shutil
+import string
 import calendar
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
+
+# ---------------------------------------------------------------------------
+# Deteção de plataforma
+# ---------------------------------------------------------------------------
+
+IS_WINDOWS: bool = sys.platform == "win32"
+
+
+def _detect_wsl() -> bool:
+    """Verifica se está a correr dentro do WSL (Windows Subsystem for Linux)."""
+    try:
+        return "microsoft" in Path("/proc/version").read_text(encoding="utf-8").lower()
+    except Exception:
+        return False
+
+
+IS_WSL: bool = not IS_WINDOWS and _detect_wsl()
 
 # Diretórios base
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DOWNLOAD_DIR = Path.home() / "Videos" / "YouTube_Backups"
 ARCHIVE_FILE = BASE_DIR / "downloaded_archive.txt"
 ENV_FILE = BASE_DIR / ".env"
+
+
+def format_bytes(bytes_val: int) -> str:
+    """Formata bytes para representação legível (ex: 500.2 GB)."""
+    val = float(bytes_val)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if val < 1024:
+            return f"{val:.1f} {unit}"
+        val /= 1024
+    return f"{val:.1f} PB"
+
+
+def get_free_space_str(path: Path | str) -> str:
+    """Devolve string com espaço livre num dado caminho ou unidade."""
+    try:
+        p = Path(path)
+        while not p.exists() and p.parent != p:
+            p = p.parent
+        _, _, free = shutil.disk_usage(str(p))
+        return f"{format_bytes(free)} livres"
+    except Exception:
+        return "N/D"
+
+
+def is_ffmpeg_installed() -> bool:
+    """Verifica se o FFmpeg está instalado e acessível no PATH."""
+    return shutil.which("ffmpeg") is not None
+
+
+def get_js_runtimes() -> dict:
+    """
+    Deteta runtimes JavaScript disponíveis no sistema (Node.js, Deno, Bun)
+    para o yt-dlp resolver desafios JS (n challenge). Suporta Linux, WSL e Windows.
+    """
+    # 1. Linuxbrew Node.js (se presente em Linux/WSL)
+    node_brew = Path("/home/linuxbrew/.linuxbrew/bin/node")
+    if node_brew.exists():
+        return {"node": {"path": str(node_brew)}}
+
+    # 2. Node.js no PATH do sistema
+    node_path = shutil.which("node")
+    if node_path:
+        return {"node": {"path": node_path}}
+
+    # 3. Deno no PATH
+    deno_path = shutil.which("deno")
+    if deno_path:
+        return {"deno": {"path": deno_path}}
+
+    # 4. Bun no PATH
+    bun_path = shutil.which("bun")
+    if bun_path:
+        return {"bun": {"path": bun_path}}
+
+    # 5. Localizações padrão no Windows (se não estiver no PATH)
+    if IS_WINDOWS:
+        common_win_node = [
+            Path(os.environ.get("ProgramFiles", "C:\\Program Files")) / "nodejs" / "node.exe",
+            Path(os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")) / "nodejs" / "node.exe",
+            Path(os.environ.get("LocalAppData", "")) / "Programs" / "node" / "node.exe",
+        ]
+        for p in common_win_node:
+            if p.exists():
+                return {"node": {"path": str(p)}}
+
+    # 6. Fallback padrão yt-dlp
+    return {"deno": {}, "node": {}, "quickjs": {}, "bun": {}}
+
+
+def get_available_storage_locations() -> List[Dict[str, Any]]:
+    """
+    Deteta unidades e pastas disponíveis para download de vídeos:
+    - Pastas predefinidas de vídeos (Linux/Windows)
+    - Discos externos (USB / discos rígidos externos)
+    - Unidades e partições montadas
+    """
+    locations: List[Dict[str, Any]] = []
+    seen_paths = set()
+
+    def _add_loc(label: str, path: Path, is_external: bool, loc_type: str = "default"):
+        canonical = str(path.resolve()) if path.exists() else str(path)
+        if canonical in seen_paths:
+            return
+        seen_paths.add(canonical)
+        locations.append({
+            "label": label,
+            "path": path,
+            "free_space": get_free_space_str(path),
+            "is_external": is_external,
+            "type": loc_type,
+        })
+
+    # Caso 1: Windows Nativo
+    if IS_WINDOWS:
+        user_name = os.environ.get("USERNAME", "Utilizador")
+        user_videos = Path.home() / "Videos" / "YouTube_Backups"
+        _add_loc(f"Windows: Pasta 'Vídeos' ({user_name})", user_videos, False, "default")
+
+        # Inspecionar unidades lógicas (A: a Z:)
+        try:
+            import ctypes
+            bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+            for letter in string.ascii_uppercase:
+                if bitmask & 1:
+                    drive_root = f"{letter}:\\"
+                    drive_type = ctypes.windll.kernel32.GetDriveTypeW(drive_root)
+                    is_c = (letter == "C")
+
+                    # DRIVE_REMOVABLE = 2, DRIVE_FIXED = 3, DRIVE_REMOTE = 4
+                    if drive_type == 2:
+                        _add_loc(
+                            f"Disco Removível / USB ({letter}:)",
+                            Path(f"{letter}:\\YouTube_Backups"),
+                            True,
+                            "external",
+                        )
+                    elif drive_type == 4:
+                        _add_loc(
+                            f"Unidade de Rede ({letter}:)",
+                            Path(f"{letter}:\\YouTube_Backups"),
+                            True,
+                            "network",
+                        )
+                    elif drive_type == 3 and not is_c:
+                        _add_loc(
+                            f"Disco Secundário / Externo ({letter}:)",
+                            Path(f"{letter}:\\YouTube_Backups"),
+                            True,
+                            "external",
+                        )
+                bitmask >>= 1
+        except Exception:
+            # Fallback se ctypes falhar
+            for letter in string.ascii_uppercase:
+                root = Path(f"{letter}:\\")
+                if root.exists() and letter != "C":
+                    _add_loc(
+                        f"Disco Secundário / Externo ({letter}:)",
+                        root / "YouTube_Backups",
+                        True,
+                        "external",
+                    )
+
+    # Caso 2: WSL (Windows Subsystem for Linux)
+    elif IS_WSL:
+        # Detectar utilizadores Windows reais
+        c_users = Path("/mnt/c/Users")
+        if c_users.exists():
+            try:
+                for u in c_users.iterdir():
+                    if (
+                        u.is_dir()
+                        and u.name.lower() not in ("default", "default user", "public", "all users", "defaultuser0")
+                        and not u.name.startswith("$")
+                    ):
+                        vid = u / "Videos"
+                        if vid.exists():
+                            _add_loc(
+                                f"Windows: Pasta 'Vídeos' ({u.name})",
+                                vid / "YouTube_Backups",
+                                False,
+                                "default",
+                            )
+            except Exception:
+                pass
+
+        # Pasta de vídeos interna do Linux/WSL
+        linux_videos = Path.home() / "Videos" / "YouTube_Backups"
+        _add_loc("Linux/WSL: ~/Videos/YouTube_Backups", linux_videos, False, "default")
+
+        # Unidades Windows montadas em /mnt (ex: /mnt/d, /mnt/e, etc.)
+        mnt = Path("/mnt")
+        if mnt.exists():
+            try:
+                for item in sorted(mnt.iterdir()):
+                    if item.is_dir() and len(item.name) == 1 and item.name.isalpha():
+                        letter = item.name.upper()
+                        if letter != "C":
+                            _add_loc(
+                                f"Disco Externo / Unidade Windows ({letter}:) [WSL]",
+                                item / "YouTube_Backups",
+                                True,
+                                "external",
+                            )
+            except Exception:
+                pass
+
+    # Caso 3: Linux Nativo
+    else:
+        linux_videos = Path.home() / "Videos" / "YouTube_Backups"
+        _add_loc("Linux: ~/Videos/YouTube_Backups", linux_videos, False, "default")
+
+    # Deteção de pens USB e discos externos montados em /media ou /run/media (Linux e WSL)
+    for media_root in [Path("/media"), Path("/run/media")]:
+        if media_root.exists():
+            try:
+                for user_dir in media_root.iterdir():
+                    if user_dir.is_dir():
+                        for mount_dir in user_dir.iterdir():
+                            if mount_dir.is_dir():
+                                _add_loc(
+                                    f"Disco Externo USB: {mount_dir.name}",
+                                    mount_dir / "YouTube_Backups",
+                                    True,
+                                    "external",
+                                )
+            except Exception:
+                pass
+
+    # Se nenhuma opção foi encontrada, garantir a pasta padrão
+    if not locations:
+        locations.append({
+            "label": "Pasta Padrão (~/Videos/YouTube_Backups)",
+            "path": DEFAULT_DOWNLOAD_DIR,
+            "free_space": get_free_space_str(DEFAULT_DOWNLOAD_DIR),
+            "is_external": False,
+            "type": "default",
+        })
+
+    return locations
+
+
+def normalize_destination_path(raw_input: str) -> Path:
+    """
+    Normaliza caminhos introduzidos pelo utilizador, suportando:
+    - Letras de unidade no Windows (ex: D:, D:\\Backups)
+    - Caminhos estilo Windows introduzidos no WSL (ex: D:\\Filmes -> /mnt/d/Filmes)
+    - Caminhos com expansão de utilizador (~/...)
+    """
+    raw = raw_input.strip().strip("\"'")
+    if not raw:
+        return DEFAULT_DOWNLOAD_DIR
+
+    # Se estiver no WSL e o utilizador colar uma unidade Windows (ex: D: ou D:\Pasta)
+    if IS_WSL:
+        m = re.match(r"^([a-zA-Z]):[\\/]?(.*)$", raw)
+        if m:
+            letter = m.group(1).lower()
+            rest = m.group(2).replace("\\", "/").strip("/")
+            if not rest:
+                return Path(f"/mnt/{letter}/YouTube_Backups")
+            return Path(f"/mnt/{letter}/{rest}")
+
+    # No Windows nativo, se o utilizador escrever apenas "D:" ou "D:\"
+    if IS_WINDOWS:
+        m = re.match(r"^([a-zA-Z]):[\\/]?$", raw)
+        if m:
+            letter = m.group(1).upper()
+            return Path(f"{letter}:\\YouTube_Backups")
+
+    path = Path(raw).expanduser()
+    return path
 
 
 def _load_env_file():

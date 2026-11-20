@@ -21,6 +21,13 @@ def show_welcome_banner():
     )
     console.print(Panel(banner_text, border_style="cyan", expand=False))
 
+    if not config.is_ffmpeg_installed():
+        if config.IS_WINDOWS:
+            msg = "[bold yellow]⚠ Aviso: FFmpeg não foi detetado no PATH do Windows.[/bold yellow] [dim]Instalação rápida: winget install Gyan.FFmpeg[/dim]"
+        else:
+            msg = "[bold yellow]⚠ Aviso: FFmpeg não foi detetado no PATH.[/bold yellow] [dim]Instalação rápida: sudo apt install ffmpeg[/dim]"
+        console.print(msg)
+
 
 def prompt_download_mode() -> str:
     """
@@ -200,53 +207,78 @@ def prompt_filter_day() -> Tuple[DateRange, str]:
 
 
 def prompt_destination_dir() -> Path:
-    console.print("\n[bold]3. Pasta Base de Destino[/bold]")
+    console.print("\n[bold]3. Pasta Base de Destino e Armazenamento[/bold]")
 
-    opcoes = []
-
-    # Opção Windows (WSL)
-    windows_videos = Path("/mnt/c/Users/dapb/Videos/YouTube_Backups")
-    if Path("/mnt/c/Users/dapb/Videos").exists():
-        opcoes.append(("Windows: Pasta 'Vídeos' do utilizador", windows_videos))
-
-    # Opção Linux interna
-    linux_videos = Path.home() / "Videos" / "YouTube_Backups"
-    opcoes.append(("Linux/WSL: ~/Videos/YouTube_Backups", linux_videos))
+    storage_locations = config.get_available_storage_locations()
 
     table = Table(
-        title="Opções de Pasta Base",
+        title="Unidades e Pastas de Destino Detetadas",
         show_header=True,
         header_style="bold magenta",
     )
     table.add_column("Opção", style="cyan", width=6)
-    table.add_column("Descrição", style="white")
-    table.add_column("Caminho", style="dim")
+    table.add_column("Descrição / Tipo", style="white", width=36)
+    table.add_column("Caminho Sugerido", style="dim")
+    table.add_column("Espaço Livre", style="green", justify="right")
 
-    for i, (desc, path) in enumerate(opcoes, start=1):
-        table.add_row(str(i), desc, str(path))
+    for i, loc in enumerate(storage_locations, start=1):
+        table.add_row(
+            str(i),
+            loc["label"],
+            str(loc["path"]),
+            loc["free_space"],
+        )
+
+    custom_opt_num = len(storage_locations) + 1
     table.add_row(
-        str(len(opcoes) + 1), "Outro caminho personalizado", "Escrever manualmente..."
+        str(custom_opt_num),
+        "[yellow]Outro caminho ou disco personalizado[/yellow]",
+        "Escrever ou colar caminho manual...",
+        "-",
     )
 
     console.print(table)
 
     escolha = Prompt.ask(
-        "[yellow]Escolhe o número da pasta desejada[/yellow]",
-        choices=[str(i) for i in range(1, len(opcoes) + 2)],
+        "[yellow]Escolhe o número da pasta/disco desejado[/yellow]",
+        choices=[str(i) for i in range(1, custom_opt_num + 1)],
         default="1",
     )
 
     escolha_idx = int(escolha) - 1
-    if escolha_idx < len(opcoes):
-        destino = opcoes[escolha_idx][1]
+    if escolha_idx < len(storage_locations):
+        selected_loc = storage_locations[escolha_idx]
+        destino = selected_loc["path"]
+
+        # Se for um disco externo ou partição, dar a opção de personalizar o nome da subpasta
+        if selected_loc.get("is_external"):
+            console.print(f"\n[cyan]Selecionaste:[/cyan] [bold]{selected_loc['label']}[/bold]")
+            usar_padrao = Confirm.ask(
+                f"Gravar na subpasta [bold yellow]{destino}[/bold yellow]?",
+                default=True,
+            )
+            if not usar_padrao:
+                sub = Prompt.ask(
+                    "[yellow]Nome da subpasta neste disco[/yellow]",
+                    default="YouTube_Backups",
+                )
+                destino = destino.parent / sub if destino.name == "YouTube_Backups" else destino / sub
     else:
         caminho_custom = Prompt.ask(
-            "[yellow]Introduz o caminho absoluto da pasta[/yellow]"
+            "[yellow]Introduz o caminho ou letra da unidade (ex: D:, D:\\Backups, /mnt/d, ~/Videos)[/yellow]"
         )
-        destino = Path(caminho_custom).expanduser().resolve()
+        destino = config.normalize_destination_path(caminho_custom)
 
-    destino.mkdir(parents=True, exist_ok=True)
-    console.print(f"[green]✓ Destino configurado:[/green] [bold]{destino}[/bold]")
+    try:
+        destino.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        console.print(f"[red]Erro ao criar pasta no destino ({destino}): {e}[/red]")
+        console.print("[yellow]A usar pasta de recurso em ~/Videos/YouTube_Backups[/yellow]")
+        destino = config.DEFAULT_DOWNLOAD_DIR
+        destino.mkdir(parents=True, exist_ok=True)
+
+    free_info = config.get_free_space_str(destino)
+    console.print(f"[green]✓ Destino configurado:[/green] [bold]{destino}[/bold] [dim]({free_info})[/dim]")
     console.print(
         "[dim]Os vídeos serão organizados nesta pasta em subpastas com o formato AAAA-MM (ex: 2024-11/)[/dim]"
     )

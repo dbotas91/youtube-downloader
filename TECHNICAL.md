@@ -73,6 +73,12 @@ Responsável por constantes globais e validação/normalização de entradas de 
 | `get_api_key()` | função | Devolve a chave da YouTube Data API v3 se configurada no `.env` |
 | `save_api_key(str)` | função | Guarda permanentemente a chave de API no `.env` local |
 | `format_duration(int)` | função | Formata segundos inteiros em formato legível `HH:MM:SS` ou `MM:SS` |
+| `format_bytes(int)` | função | Converte bytes numéricos em unidades legíveis (MB, GB, TB) |
+| `get_free_space_str(path)` | função | Obtém espaço livre formatado numa dada pasta ou unidade |
+| `is_ffmpeg_installed()` | função | Verifica presença do executável FFmpeg no PATH |
+| `get_js_runtimes()` | função | Deteta dinamicamente Node.js/Deno/Bun no Windows, Linux ou WSL |
+| `get_available_storage_locations()` | função | Deteta unidades montadas, discos externos USB e pastas padrão do utilizador |
+| `normalize_destination_path(str)` | função | Normaliza caminhos, unidades (D:) e caminhos Windows no WSL |
 
 > [!NOTE]
 > O range de anos válidos está limitado a `2005–2035` em `parse_year()`, `parse_month()` e `parse_month_range()`. Ajusta se necessário.

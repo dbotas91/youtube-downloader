@@ -37,11 +37,7 @@ class ChannelInventory:
             "ignoreerrors": True,
             "quiet": True,
             "no_warnings": True,
-            "js_runtimes": (
-                {"node": {"path": "/home/linuxbrew/.linuxbrew/bin/node"}}
-                if Path("/home/linuxbrew/.linuxbrew/bin/node").exists()
-                else {"deno": {}, "node": {}, "quickjs": {}, "bun": {}}
-            ),
+            "js_runtimes": config.get_js_runtimes(),
             "remote_components": ["ejs:github"],
             "sleep_interval_requests": 1,
         }

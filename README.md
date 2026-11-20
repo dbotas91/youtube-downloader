@@ -69,38 +69,45 @@ Outras características:
 - **Apenas uploads próprios** — foca-se na aba `/videos` do canal, ignorando playlists de terceiros
 - **Vídeos privados / não listados** — suporte a importação de cookies de sessão do browser (Chrome, Firefox, Edge, etc.)
 - **Anti rate-limit** — pausa automática entre pedidos para não ser bloqueado pelo YouTube
-- **Suporte a WSL / Windows / Linux** — deteta automaticamente a pasta `Vídeos` do utilizador Windows em ambientes WSL
+- **Suporte Multiplataforma (Windows Nativo, WSL e Linux)** — funciona diretamente no Windows (`run.bat` / `run.ps1`) e no Linux/WSL (`run.sh`)
+- **Deteção Automática de Discos Externos / USB** — lista unidades e partições com o espaço em disco disponível em tempo real
+- **Nomes de ficheiros seguros** — sanitização automática de caracteres para compatibilidade total entre NTFS, FAT32 e ext4
 
 ---
 
 ## 🛠 Pré-requisitos
 
-| Ferramenta | Versão mínima | Notas |
-|-----------|--------------|-------|
-| Python | 3.12+ | Incluído no Ubuntu 24.04 |
-| FFmpeg | qualquer | Necessário para juntar vídeo + áudio |
-| pip | qualquer | Para instalar dependências Python |
-
-> [!NOTE]
-> Instalar o Node.js (`sudo apt install nodejs`) é opcional mas recomendado: elimina o aviso de *JS runtime* e garante acesso a todos os formatos de qualidade.
+| Ferramenta | Windows Nativo | Linux / WSL | Notas |
+|-----------|----------------|-------------|-------|
+| Python | 3.10+ (adicionar ao PATH) | 3.10+ | [python.org/downloads](https://www.python.org/downloads/) |
+| FFmpeg | `winget install Gyan.FFmpeg` | `sudo apt install ffmpeg` | Necessário para juntar vídeo + áudio em MP4 |
+| Node.js *(opcional)* | `winget install OpenJS.NodeJS` | `sudo apt install nodejs` | Resolve desafios JavaScript (n challenge) sem avisos |
 
 ---
 
-## 🚀 Instalação e Primeira Execução
+## 🚀 Como Executar
+
+### 🪟 No Windows (Nativo)
+
+1. Dá duplo clique no ficheiro **`run.bat`** (ou executa `.\run.ps1` no PowerShell).
+2. O script configura automaticamente o ambiente virtual Python (`.venv`), instala as dependências e inicia o programa!
+
+### 🐧 No Linux ou WSL
 
 ```bash
-# 1. Clonar o repositório
-git clone git@github.com:<utilizador>/youtube-downloader.git
 cd youtube-downloader
-
-# 2. Criar o ambiente virtual e instalar dependências
-python3 -m venv .venv --without-pip
-curl -sSL https://bootstrap.pypa.io/get-pip.py | .venv/bin/python3
-.venv/bin/pip install -r requirements.txt
-
-# 3. Executar
 ./run.sh
 ```
+*(O script `run.sh` ativa o ambiente virtual ou cria-o automaticamente na primeira execução).*
+
+---
+
+## 💾 Seleção de Destino e Discos Externos
+
+Na etapa **3. Pasta Base de Destino e Armazenamento**, a aplicação lista automaticamente:
+1. A pasta padrão **Vídeos** do teu utilizador (`~/Videos` ou `C:\Users\<utilizador>\Videos`).
+2. **Discos externos / pens USB** e unidades secundárias detetadas (ex: `D:`, `E:`, ou `/mnt/d`), com indicação clara do **espaço livre**.
+3. Opção manual para colar qualquer caminho ou letra de unidade (se estiveres em WSL e colares um caminho do Windows como `D:\Backups`, a ferramenta converte automaticamente para `/mnt/d/Backups`!).
 
 ---
 
