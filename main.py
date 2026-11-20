@@ -218,9 +218,9 @@ def main():
             else:
                 downloader.download_channel(target_url)
 
+            console.print()
             console.print(
-                "\n\n"
-                + Panel(
+                Panel(
                     "[bold green]✔ Processo concluído com sucesso![/bold green]\n"
                     f"Ficheiros organizados em subpastas AAAA-MM dentro de: [cyan]{dest_dir}[/cyan]",
                     border_style="green",
