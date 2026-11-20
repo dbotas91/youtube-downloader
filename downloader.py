@@ -48,8 +48,12 @@ class YouTubeDownloader:
             "updatetime": True,
             "quiet": True,
             "no_warnings": True,  # suprimir avisos de JS runtime e outros ruídos
-            # Suportar qualquer motor JavaScript disponível no sistema
-            "js_runtimes": {"deno": {}, "node": {}, "quickjs": {}, "bun": {}},
+            # Suportar qualquer motor JavaScript disponível no sistema (Node.js, Deno, Bun)
+            "js_runtimes": config.get_js_runtimes(),
+            # Garante nomes de ficheiros compatíveis com sistemas de ficheiros Windows/NTFS
+            "windowsfilenames": True,
+            # Permitir componente externo para resolver desafios JS (n challenge)
+            "remote_components": ["ejs:github"],
             # Pausa entre pedidos para evitar rate-limit do YouTube (2 a 5 segundos)
             "sleep_interval_requests": 2,
             "sleep_interval": 2,
@@ -59,6 +63,8 @@ class YouTubeDownloader:
         # Filtro de data (se fornecido e aplicável)
         if apply_date_filter and self.date_range is not None:
             opts["daterange"] = self.date_range
+            # Interrompe o processo assim que encontrar vídeos anteriores ao período selecionado
+            opts["break_on_reject"] = True
 
         # Se o utilizador tiver vídeos privados/não listados e quiser usar cookies do browser
         if self.cookie_browser:
@@ -81,6 +87,16 @@ class YouTubeDownloader:
 
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([normalized_url])
+
+    def download_videos_list(self, video_urls: list[str]):
+        """
+        Executa a transferência direta de uma lista de URLs de vídeos (previamente obtidos
+        via YouTube Data API v3), evitando o scraping do canal e rate-limits.
+        """
+        opts = self._get_ydl_options(apply_date_filter=False)
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download(video_urls)
 
     def download_single_video(self, video_input: str):
         """

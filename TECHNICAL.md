@@ -12,10 +12,13 @@ youtube-downloader/
 ├── main.py                  # Ponto de entrada — orquestra o fluxo completo
 ├── ui.py                    # Interface de terminal (Rich) + logger personalizado
 ├── downloader.py            # Motor de download (wrapper sobre yt-dlp)
+├── inventory.py             # Motor de catálogo e exportação (.md, .json, .csv)
+├── youtube_api.py           # Cliente oficial da YouTube Data API v3 (Opção B)
 ├── config.py                # Constantes, templates de caminho e parsers de datas
 ├── run.sh                   # Script de arranque (ativa venv + executa main.py)
 ├── requirements.txt         # Dependências Python
-├── .gitignore               # Exclui .venv/, __pycache__/, vídeos e histórico
+├── .env                     # (opcional, não versionado) Chave YOUTUBE_API_KEY
+├── .gitignore               # Exclui .venv/, .env, __pycache__/, vídeos e histórico
 └── downloaded_archive.txt   # (gerado em runtime, não versionado) histórico de IDs
 ```
 
@@ -28,13 +31,21 @@ flowchart TD
     C -->|modo 1| D["prompt_channel_url()"]
     C -->|modo 2| E["prompt_video_url()"]
     C -->|modos 3-5| F["prompt_channel_url() +\nprompt_filter_year/month/day()"]
-    D & E & F --> G["prompt_destination_dir()"]
-    G --> H["prompt_cookies()"]
-    H --> I["show_summary() + Confirm"]
-    I --> J["YouTubeDownloader()"]
-    J -->|modo 2| K["download_single_video()"]
-    J -->|outros| L["download_channel()"]
-    K & L --> M["yt_dlp.YoutubeDL.download()"]
+    C -->|modos 6-8| N["prompt_channel_url() +\nprompt_filter_month/range() +\nprompt_export_format()"]
+    D & E & F --> G1["prompt_destination_dir() +\nprompt_connection_method(is_download=True)"]
+    N --> G2["prompt_destination_dir() +\nprompt_connection_method(is_download=False)"]
+    G1 & G2 --> I["show_summary() + Confirm"]
+    I -->|modos 1, 3-5| J["YouTubeDownloader()"]
+    I -->|modo 2| J2["YouTubeDownloader()\n(prompt_cookies apenas)"]
+    I -->|modos 6-8| O["ChannelInventory()"]
+    J -->|engine=api| JA["YouTubeAPIClient.fetch_videos()\n+ download_videos_list()"]
+    J -->|engine=cookies ou scraper| L["download_channel()\n(com break_on_reject: True)"]
+    J2 --> K["download_single_video()"]
+    JA & L & K --> M["yt_dlp.YoutubeDL.download()"]
+    O -->|engine=api| P1["YouTubeAPIClient.fetch_videos()\n(0% scraping, ultra rápido)"]
+    O -->|engine=cookies ou scraper| P2["yt-dlp extract_info()\n(com break_on_reject: True)"]
+    P1 & P2 --> Q["filter_month/range() +\ngroup_by_month() (ordem crescente)"]
+    Q --> R["export_inventory()\n(.md, .json, .csv)"]
 ```
 
 ---
@@ -50,15 +61,84 @@ Responsável por constantes globais e validação/normalização de entradas de 
 | `BASE_DIR` | `Path` | Diretório raiz do projeto |
 | `DEFAULT_DOWNLOAD_DIR` | `Path` | `~/Videos/YouTube_Backups` |
 | `ARCHIVE_FILE` | `Path` | `downloaded_archive.txt` (histórico de IDs) |
+| `ENV_FILE` | `Path` | `.env` (guarda localmente `YOUTUBE_API_KEY`) |
 | `OUTPUT_TEMPLATE` | `str` | Template yt-dlp: `%(upload_date>%Y-%m\|sem-data)s/%(title)s [%(id)s].%(ext)s` |
 | `normalize_channel_url(str)` | função | Normaliza o input do canal para `https://www.youtube.com/@X/videos` |
 | `normalize_video_url(str)` | função | Normaliza ID ou link de vídeo individual |
 | `parse_year(str)` | função | Devolve `(start_YYYYMMDD, end_YYYYMMDD, label)` |
-| `parse_month(str)` | função | Aceita `AAAA-MM` ou `MM/AAAA`, trata anos bissextos |
+| `parse_month(str)` | função | Aceita `AAAA-MM`, `MM-AAAA`, `MM/AAAA` ou `MM.AAAA`, trata anos bissextos |
+| `parse_month_range(str, str)` | função | Valida início e fim e devolve `(start_YYYYMMDD, end_YYYYMMDD, lbl_inicio, lbl_fim)` |
 | `parse_day(str)` | função | Aceita `AAAA-MM-DD`, `DD/MM/AAAA`, `AAAAAAMMDD` |
+| `get_channel_slug(str)` | função | Extrai identificador seguro do canal para nomes de ficheiros |
+| `get_api_key()` | função | Devolve a chave da YouTube Data API v3 se configurada no `.env` |
+| `save_api_key(str)` | função | Guarda permanentemente a chave de API no `.env` local |
+| `format_duration(int)` | função | Formata segundos inteiros em formato legível `HH:MM:SS` ou `MM:SS` |
+| `format_bytes(int)` | função | Converte bytes numéricos em unidades legíveis (MB, GB, TB) |
+| `get_free_space_str(path)` | função | Obtém espaço livre formatado numa dada pasta ou unidade |
+| `is_ffmpeg_installed()` | função | Verifica presença do executável FFmpeg no PATH |
+| `get_js_runtimes()` | função | Deteta dinamicamente Node.js/Deno/Bun no Windows, Linux ou WSL |
+| `get_available_storage_locations()` | função | Deteta unidades montadas, discos externos USB e pastas padrão do utilizador |
+| `normalize_destination_path(str)` | função | Normaliza caminhos, unidades (D:) e caminhos Windows no WSL |
 
 > [!NOTE]
-> O range de anos válidos está limitado a `2005–2035` em `parse_year()` e `parse_month()`. Ajusta se necessário.
+> O range de anos válidos está limitado a `2005–2035` em `parse_year()`, `parse_month()` e `parse_month_range()`. Ajusta se necessário.
+
+---
+
+### `youtube_api.py`
+
+Cliente oficial para a **YouTube Data API v3** da Google. Utiliza exclusivamente módulos da biblioteca padrão do Python (`urllib.request`, `urllib.parse`, `json`) sem dependências externas.
+
+#### Classe `YouTubeAPIClient`
+
+```python
+YouTubeAPIClient(api_key: str)
+```
+
+**Principais métodos:**
+
+| Método | Descrição |
+|---|---|
+| `resolve_channel_uploads_playlist(channel_input)` | Converte handle (`@Canal`), URL ou ID no ID da playlist de uploads (`UU...`) |
+| `fetch_videos(channel_input, date_range, progress_callback)` | Pagina através dos uploads com interrupção antecipada ao atingir a data mínima |
+| `_enrich_video_durations(videos)` | Recolhe durações em lotes de 50 vídeos por chamada (`videos.list`) |
+
+**Eficiência de Quota:**
+- Quota gratuita diária: **10.000 unidades**.
+- Para listar um mês (ex: 20 vídeos): consome apenas **2 a 3 unidades** de quota no total.
+- Imune a bloqueios de IP, captchas ou rate-limits de scraping.
+
+---
+
+### `inventory.py`
+
+Módulo dedicado a catalogar, listar e exportar os vídeos do canal sem descarregar os ficheiros multimédia. Suporta tanto a YouTube Data API v3 (Opção B) como o motor yt-dlp (Opção C).
+
+#### Classe `ChannelInventory`
+
+```python
+ChannelInventory(
+    api_key: Optional[str] = None,
+    cookie_browser: Optional[str] = None,
+    logger: Optional[Any] = None,
+)
+```
+
+> [!TIP]
+> Se `api_key` for fornecida, delega automaticamente a recolha de vídeos para o `YouTubeAPIClient`. Se for `None`, utiliza o `yt-dlp` com `cookiesfrombrowser` e `break_on_reject: True`.
+
+**Principais métodos:**
+
+| Método | Descrição |
+|---|---|
+| `load_channel_videos(channel_url, date_range, progress_callback)` | Extrai metadados de todos os vídeos do canal com ordenação cronológica crescente |
+| `filter_month(videos, month_label)` | Filtra vídeos de um mês específico (`AAAA-MM`) |
+| `filter_range(videos, start_month, end_month)` | Filtra vídeos dentro de um intervalo de meses |
+| `group_by_month(videos)` | Agrupa vídeos num dicionário por mês (`AAAA-MM`) mantendo ordem crescente |
+| `export_markdown(grouped, output_file, channel_name, filter_desc)` | Gera ficheiro `.md` estruturado com tabela e sumário |
+| `export_json(grouped, output_file, channel_name, filter_desc)` | Gera ficheiro `.json` com metadados e estatísticas |
+| `export_csv(grouped, output_file)` | Gera ficheiro `.csv` em UTF-8-BOM compatível com Excel |
+| `export_inventory(...)` | Ponto de entrada unificado que exporta no formato pretendido (`md`, `json`, `csv` ou `all`) |
 
 ---
 
@@ -95,9 +175,19 @@ YouTubeDownloader(
 | `sleep_interval` | `2` | Pausa mínima (s) entre downloads |
 | `max_sleep_interval` | `5` | Pausa máxima (s) com jitter aleatório |
 | `daterange` | `DateRange(start, end)` | Apenas aplicado quando `apply_date_filter=True` |
+| `break_on_reject` | `True` | Interrompe a extração assim que atinge vídeos anteriores ao período |
+| `remote_components` | `["ejs:github"]` | Permite descarregar solver externo para resolver desafios JS (n challenge) |
 
 > [!IMPORTANT]
 > `download_single_video()` chama `_get_ydl_options(apply_date_filter=False)` — o filtro de data **não** é aplicado a vídeos individuais (o utilizador selecionou o vídeo explicitamente).
+
+**Métodos públicos:**
+
+| Método | Descrição |
+|---|---|
+| `download_channel(channel_url)` | Descarrega todos os uploads do canal (com filtro de data se fornecido) |
+| `download_videos_list(video_urls)` | Descarrega uma lista de URLs previamente obtidos via YouTube Data API v3 (sem `apply_date_filter`) |
+| `download_single_video(video_input)` | Descarrega um vídeo individual por URL ou ID (sem filtro de data) |
 
 **Alias para retrocompatibilidade:**
 ```python
@@ -110,7 +200,19 @@ YouTubeChannelDownloader = YouTubeDownloader
 
 Interface de terminal construída com a biblioteca `rich`. Contém:
 
-- **Funções de prompt** — cada passo da configuração interativa
+- **Funções de prompt** — cada passo da configuração interativa:
+  - `prompt_download_mode()` — tabela com 8 modos (5 download + 3 listagem)
+  - `prompt_channel_url()` / `prompt_video_url()` — input do alvo
+  - `prompt_filter_year/month/day()` — parsers de datas com validação
+  - `prompt_month_range()` — intervalo de dois meses
+  - `prompt_export_format()` — escolha entre md / json / csv / all
+  - `prompt_destination_dir()` — pasta de destino (Windows/Linux/personalizada)
+  - `prompt_connection_method(is_download, saved_key)` — seleção do motor (API v3 / cookies / anónimo) para download **e** catálogo
+  - `prompt_cookies()` — usado apenas para vídeo individual (modo 2)
+  - `prompt_api_key_input()` — inserção e gravação da chave de API no `.env`
+  - `prompt_browser_selection()` — escolha do browser para cookies
+  - `show_summary(...)` — painel de resumo antes da confirmação
+  - `show_inventory_results(...)` — tabela de resultados do catálogo gerado
 - **`print_progress_hook(d)`** — hook de progresso passado ao yt-dlp
 - **`RichYDLLogger`** — logger personalizado injetado no yt-dlp
 
@@ -124,6 +226,9 @@ Implementa a interface de logger do yt-dlp (`debug`, `info`, `warning`, `error`)
 | `debug()` | `has already been recorded in the archive` | Mostra `⏭ Já descarregado anteriormente: <título>` |
 | `debug()` | `[download] Destination:` | Mostra `A preparar: <nome do ficheiro>` |
 | `warning()` | `upload date is not in range` | Suprimido (duplicado do debug) |
+| `warning()` | `Remote component challenge...` | Suprimido (resolvido internamente pelo EJS) |
+| `warning()` | `n challenge solving failed` | Suprimido (aviso não-fatal de fallback) |
+| `warning()` | `Incomplete data received. Retrying` | Mostra nota limpa de nova tentativa em português |
 | `warning()` | `No supported JavaScript runtime` | Mostra nota discreta sobre JS runtime |
 | `warning()` | outros | Passa integralmente como `Aviso:` |
 | `error()` | `rate-limited by YouTube` | Mensagem de alerta clara em português |
@@ -134,11 +239,19 @@ Implementa a interface de logger do yt-dlp (`debug`, `info`, `warning`, `error`)
 
 ### `main.py`
 
-Orquestra o fluxo completo:
-1. Chama as funções de prompt de `ui.py` em sequência
-2. Constrói `YouTubeDownloader` com todos os parâmetros
-3. Chama `download_single_video()` ou `download_channel()` conforme o modo
-4. Trata `KeyboardInterrupt` (Ctrl+C) e exceções genéricas
+Ponto de entrada e orquestrador do fluxo completo:
+
+1. **Recolha de inputs** — chama as funções de prompt de `ui.py` em sequência (modo, URL, destino, motor, confirmação)
+2. **Seleção do motor** — `prompt_connection_method()` devolve o triplo `(engine, api_key, cookie_browser)`:
+   - `engine = "api"` → usa `YouTubeAPIClient` para listar e, em download, passa as URLs diretamente ao `YouTubeDownloader.download_videos_list()`
+   - `engine = "cookies"` → usa yt-dlp com cookies do browser (`cookiesfrombrowser`)
+   - `engine = "scraper"` → usa yt-dlp anónimo (padrão)
+3. **Inventário (modos 6–8)** — cria `ChannelInventory(api_key, cookie_browser)`, chama `load_channel_videos()`, filtra, agrupa e exporta
+4. **Download (modos 1, 3–5)** — cria `YouTubeDownloader(cookie_browser, date_range)`:
+   - Se `engine == "api"`: descobre URLs via `YouTubeAPIClient.fetch_videos()` e chama `download_videos_list(urls)`
+   - Caso contrário: chama `download_channel(url)` com `break_on_reject: True` quando há filtro de datas
+5. **Vídeo individual (modo 2)** — usa apenas `prompt_cookies()` (sem opção API) e chama `download_single_video()`
+6. Trata `KeyboardInterrupt` (Ctrl+C) e exceções genéricas com mensagem de erro em português
 
 ---
 

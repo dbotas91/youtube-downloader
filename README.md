@@ -6,13 +6,15 @@ Aplicação em Python para descarregar vídeos do teu canal do YouTube, organiza
 
 ## ✨ Funcionalidades
 
-| Modo | Descrição |
-|------|-----------|
-| **Canal Completo** | Descarrega todos os uploads do canal |
-| **Vídeo Individual** | Descarrega um vídeo específico por link ou ID |
-| **Filtro por Ano** | Apenas vídeos de um ano (ex: `2024`) |
-| **Filtro por Mês** | Apenas vídeos de um mês (ex: `2024-11` ou `11/2024`) |
-| **Filtro por Dia** | Apenas vídeos de um dia exato (ex: `19/11/2024`) |
+### 📥 Transferência de Vídeos (MP4)
+
+| Opção | Modo | Descrição |
+|:---:|------|-----------|
+| **1** | **Canal Completo** | Descarrega todos os uploads do canal |
+| **2** | **Vídeo Individual** | Descarrega um vídeo específico por link ou ID |
+| **3** | **Filtrar por Ano** | Apenas vídeos de um ano (ex: `2024`) |
+| **4** | **Filtrar por Mês** | Apenas vídeos de um mês (ex: `2024-11` ou `11-2024`) |
+| **5** | **Filtrar por Dia** | Apenas vídeos de um dia exato (ex: `19/11/2024`) |
 
 **Sempre que um vídeo é descarregado**, é automaticamente guardado na subpasta correspondente à data de publicação:
 
@@ -24,44 +26,88 @@ Aplicação em Python para descarregar vídeos do teu canal do YouTube, organiza
     Outro Vídeo [xyz789].mp4
 ```
 
+### 📋 Listagem e Catálogo de Vídeos (Sem Download)
+
+Permite indexar e catalogar os vídeos do canal organizados em ordem cronológica crescente, exportando para o formato que preferires:
+
+| Opção | Modo | Descrição |
+|:---:|------|-----------|
+| **6** | **Listar Mês Específico** | Exporta a lista de vídeos de um mês (ex: `11-2024`) |
+| **7** | **Listar Intervalo de Meses** | Exporta os vídeos de um intervalo (ex: `09-2024` a `12-2024`) |
+| **8** | **Listar Todos Agrupados** | Exporta todos os vídeos do canal separados e agrupados por mês |
+
+**Formatos de exportação suportados:**
+- **Markdown (`.md`)** — Ideal para visualização direta, leitura humana, GitHub e notas (Obsidian) com índice por mês e links diretos.
+- **JSON (`.json`)** — Ideal para integrações, scripts de automação, APIs e preservação completa de metadados estruturados.
+- **CSV (`.csv`)** — Ideal para abrir diretamente no Excel ou Google Sheets (com codificação UTF-8-BOM) para filtros e ordenação manual.
+- **Todos (`md, json, csv`)** — Exporta os 3 ficheiros em simultâneo com nomes descritivos (ex: `catalogo_OSeuCanal_09-2024_a_12-2024.md`).
+
+### 🛡️ Proteção Anti Rate-Limit (Disponível para Download e Catálogo)
+
+Tanto ao **descarregar vídeos (MP4)** como ao **gerar catálogos**, podes escolher entre três motores:
+1. **YouTube Data API v3 (Oficial Google):**
+   - Usa a API oficial do Google Cloud (10.000 requisições/dia gratuitas para sempre).
+   - Instantânea, fiável e com **0% de risco de rate-limit**.
+   - No descarregamento: descobre a lista de vídeos via API sem tocar na página do canal e transfere apenas os ficheiros encontrados.
+   - Podes definir a chave no ficheiro `.env` (`YOUTUBE_API_KEY=sua_chave`) ou inseri-la diretamente na primeira execução quando solicitada no terminal.
+2. **yt-dlp com Cookies do Navegador:**
+   - Importa a tua sessão do Chrome, Firefox, Edge, Brave ou Chromium para o YouTube reconhecer a tua conta de proprietário do canal.
+   - Ativação automática de `break_on_reject: True`: para transferências e listagens por mês ou intervalo, interrompe a leitura assim que sai das datas selecionadas, poupando centenas de pedidos.
+3. **yt-dlp Anónimo (Padrão):**
+   - Ligação direta sem login nem chaves de API.
+
+#### 🔑 Como obter a Chave de API Gratuita (Opção B)
+1. Acede a [console.cloud.google.com](https://console.cloud.google.com/) com a tua conta Google.
+2. Cria um novo projeto (ex: `YouTube Backup`).
+3. Em **APIs e Serviços ➔ Biblioteca**, pesquisa por **YouTube Data API v3** e clica em **Ativar**.
+4. Em **Credenciais ➔ Criar Credenciais ➔ Chave de API** (*API Key*).
+5. Copia a chave gerada e cola-a quando a aplicação perguntar (podes optar por guardá-la automaticamente no ficheiro `.env`).
+
 Outras características:
 - **Sem duplicados** — registo permanente em `downloaded_archive.txt`; vídeos já descarregados são ignorados automaticamente em execuções futuras
 - **Máxima qualidade (MP4)** — combina o melhor fluxo de vídeo e áudio via FFmpeg
 - **Apenas uploads próprios** — foca-se na aba `/videos` do canal, ignorando playlists de terceiros
 - **Vídeos privados / não listados** — suporte a importação de cookies de sessão do browser (Chrome, Firefox, Edge, etc.)
 - **Anti rate-limit** — pausa automática entre pedidos para não ser bloqueado pelo YouTube
-- **Suporte a WSL / Windows / Linux** — deteta automaticamente a pasta `Vídeos` do utilizador Windows em ambientes WSL
+- **Suporte Multiplataforma (Windows Nativo, WSL e Linux)** — funciona diretamente no Windows (`run.bat` / `run.ps1`) e no Linux/WSL (`run.sh`)
+- **Deteção Automática de Discos Externos / USB** — lista unidades e partições com o espaço em disco disponível em tempo real
+- **Nomes de ficheiros seguros** — sanitização automática de caracteres para compatibilidade total entre NTFS, FAT32 e ext4
 
 ---
 
 ## 🛠 Pré-requisitos
 
-| Ferramenta | Versão mínima | Notas |
-|-----------|--------------|-------|
-| Python | 3.12+ | Incluído no Ubuntu 24.04 |
-| FFmpeg | qualquer | Necessário para juntar vídeo + áudio |
-| pip | qualquer | Para instalar dependências Python |
-
-> [!NOTE]
-> Instalar o Node.js (`sudo apt install nodejs`) é opcional mas recomendado: elimina o aviso de *JS runtime* e garante acesso a todos os formatos de qualidade.
+| Ferramenta | Windows Nativo | Linux / WSL | Notas |
+|-----------|----------------|-------------|-------|
+| Python | 3.10+ (adicionar ao PATH) | 3.10+ | [python.org/downloads](https://www.python.org/downloads/) |
+| FFmpeg | `winget install Gyan.FFmpeg` | `sudo apt install ffmpeg` | Necessário para juntar vídeo + áudio em MP4 |
+| Node.js *(opcional)* | `winget install OpenJS.NodeJS` | `sudo apt install nodejs` | Resolve desafios JavaScript (n challenge) sem avisos |
 
 ---
 
-## 🚀 Instalação e Primeira Execução
+## 🚀 Como Executar
+
+### 🪟 No Windows (Nativo)
+
+1. Dá duplo clique no ficheiro **`run.bat`** (ou executa `.\run.ps1` no PowerShell).
+2. O script configura automaticamente o ambiente virtual Python (`.venv`), instala as dependências e inicia o programa!
+
+### 🐧 No Linux ou WSL
 
 ```bash
-# 1. Clonar o repositório
-git clone git@github.com:<utilizador>/youtube-downloader.git
 cd youtube-downloader
-
-# 2. Criar o ambiente virtual e instalar dependências
-python3 -m venv .venv --without-pip
-curl -sSL https://bootstrap.pypa.io/get-pip.py | .venv/bin/python3
-.venv/bin/pip install -r requirements.txt
-
-# 3. Executar
 ./run.sh
 ```
+*(O script `run.sh` ativa o ambiente virtual ou cria-o automaticamente na primeira execução).*
+
+---
+
+## 💾 Seleção de Destino e Discos Externos
+
+Na etapa **3. Pasta Base de Destino e Armazenamento**, a aplicação lista automaticamente:
+1. A pasta padrão **Vídeos** do teu utilizador (`~/Videos` ou `C:\Users\<utilizador>\Videos`).
+2. **Discos externos / pens USB** e unidades secundárias detetadas (ex: `D:`, `E:`, ou `/mnt/d`), com indicação clara do **espaço livre**.
+3. Opção manual para colar qualquer caminho ou letra de unidade (se estiveres em WSL e colares um caminho do Windows como `D:\Backups`, a ferramenta converte automaticamente para `/mnt/d/Backups`!).
 
 ---
 
@@ -98,7 +144,8 @@ python3 main.py
 | Canal | `@MeuCanal`, `https://www.youtube.com/@MeuCanal`, `MeuCanal` |
 | Vídeo individual | `https://www.youtube.com/watch?v=abc123`, `abc123` |
 | Ano | `2024` |
-| Mês | `2024-11`, `11/2024` |
+| Mês | `2024-11`, `11-2024`, `11/2024`, `11.2024` |
+| Intervalo de Meses | Inicial: `09-2024`, Final: `12-2024` |
 | Dia | `2024-11-19`, `19/11/2024`, `19-11-2024` |
 
 ---
@@ -109,7 +156,10 @@ python3 main.py
 ```
 ERROR: Video unavailable. The current session has been rate-limited...
 ```
-O YouTube bloqueou temporariamente a tua sessão por excesso de pedidos. **Aguarda 1 hora** e volta a executar. Os vídeos já registados no histórico não serão repetidos.
+O YouTube bloqueou temporariamente o teu IP por excesso de scraping anónimo.
+- **Para gerar catálogos:** Usa a **Opção B (YouTube Data API v3)** — é instantânea e imune a rate-limits.
+- **Para transferências:** Seleciona a **Opção C (Cookies do navegador)** para usar a tua sessão autenticada do canal e ativação de paragem antecipada.
+- Se já foste bloqueado pelo YouTube, aguarda cerca de 30 a 60 minutos para o IP ser libertado.
 
 ### Aviso de JS runtime
 ```

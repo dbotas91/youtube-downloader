@@ -3,6 +3,10 @@
 venv/
 env/
 
+# Ficheiros de configuração com chaves locais
+.env
+*.env
+
 # Python cache
 __pycache__/
 *.py[cod]
