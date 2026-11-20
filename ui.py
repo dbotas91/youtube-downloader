@@ -253,26 +253,35 @@ def prompt_destination_dir() -> Path:
     return destino
 
 
-def prompt_inventory_method(saved_key: Optional[str] = None) -> Tuple[str, Optional[str], Optional[str]]:
+def prompt_connection_method(
+    is_download: bool = False,
+    saved_key: Optional[str] = None,
+) -> Tuple[str, Optional[str], Optional[str]]:
     """
-    Pergunta ao utilizador qual o motor que pretende usar para indexar o canal.
-    Opção B: YouTube Data API v3 (Oficial Google, sem scraping nem rate-limit)
-    Opção C: yt-dlp com Cookies do Navegador (Sessão do canal)
-    Opção Padrão: yt-dlp Anónimo
+    Pergunta ao utilizador qual o motor que pretende usar (tanto para descarregar como para catalogar).
+    1. YouTube Data API v3 (Oficial Google, sem scraping do canal nem rate-limit)
+    2. yt-dlp com Cookies do Navegador (Sessão do canal)
+    3. yt-dlp Anónimo (Padrão)
     Retorna: (motor: 'api' | 'cookies' | 'scraper', api_key, cookie_browser)
     """
-    console.print("\n[bold]Método de Indexação do Canal (Anti Rate-Limit)[/bold]")
+    tipo_acao = "Transferência" if is_download else "Indexação do Catálogo"
+    console.print(f"\n[bold]4. Método de {tipo_acao} (Anti Rate-Limit)[/bold]")
 
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Opção", style="cyan", width=6)
-    table.add_column("Método", style="bold white", width=26)
+    table.add_column("Método", style="bold white", width=30)
     table.add_column("Vantagens", style="dim")
 
-    api_extra = " (Chave guardada no .env detetada ✔)" if saved_key else " (Requer chave API do Google Cloud)"
+    api_extra = " (Chave guardada no .env ✔)" if saved_key else " (Requer chave API do Google Cloud)"
+    desc_api = (
+        f"Oficial Google: lista os vídeos via API sem scraping e descarrega direto{api_extra}"
+        if is_download
+        else f"Oficial Google: ultra rápida, sem scraping, sem rate-limit{api_extra}"
+    )
     table.add_row(
         "1",
         "YouTube Data API v3" + ("[green]*[/green]" if saved_key else ""),
-        f"Oficial Google: ultra rápida, sem scraping, sem rate-limit{api_extra}",
+        desc_api,
     )
     table.add_row(
         "2",
@@ -305,6 +314,10 @@ def prompt_inventory_method(saved_key: Optional[str] = None) -> Tuple[str, Optio
 
     else:
         return "scraper", None, None
+
+
+# Alias para retrocompatibilidade
+prompt_inventory_method = prompt_connection_method
 
 
 def prompt_api_key_input() -> str:
@@ -400,18 +413,24 @@ def show_summary(
             f"[bold cyan]Pasta de Destino:[/bold cyan] {dest_dir}\n"
         )
     else:
+        motor_desc = (
+            "YouTube Data API v3 (Descoberta oficial sem rate-limit) + Download MP4"
+            if use_api
+            else f"yt-dlp ({'Cookies de ' + browser_cookies if browser_cookies else 'Anónimo'})"
+        )
         resumo = (
             f"[bold cyan]Ação:[/bold cyan] Descarregar Vídeos (MP4)\n"
             f"[bold cyan]Modo:[/bold cyan] {mode_name}\n"
             f"[bold cyan]Alvo:[/bold cyan] {target}\n"
+            f"[bold cyan]Motor:[/bold cyan] {motor_desc}\n"
             f"[bold cyan]Filtro de Data:[/bold cyan] {filter_label}\n"
             f"[bold cyan]Pasta Base:[/bold cyan] {dest_dir}\n"
             f"[bold cyan]Organização:[/bold cyan] Subpastas [bold yellow]AAAA-MM[/bold yellow] automáticas\n"
             f"[bold cyan]Vídeos Repetidos:[/bold cyan] Ignorados automaticamente (histórico ativo)\n"
             f"[bold cyan]Autenticação:[/bold cyan] {
-                'Navegador ' + browser_cookies
-                if browser_cookies
-                else 'Pública (Sem login)'
+                'Chave de API Google Cloud'
+                if use_api
+                else ('Navegador ' + browser_cookies if browser_cookies else 'Pública (Sem login)')
             }"
         )
     console.print(Panel(resumo, title="Configuração Final", border_style="green"))

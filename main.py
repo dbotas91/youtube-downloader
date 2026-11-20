@@ -1,14 +1,16 @@
 import sys
 from pathlib import Path
+from typing import Optional
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm
 
-import ui
 import config
+import ui
 from downloader import YouTubeDownloader
 from inventory import ChannelInventory
+from youtube_api import YouTubeAPIClient
 
 console = Console()
 
@@ -78,12 +80,14 @@ def main():
         browser_cookies = None
         engine = "scraper"
 
-        if is_inventory:
-            engine, api_key, browser_cookies = ui.prompt_inventory_method(
-                saved_key=config.get_api_key()
-            )
-        else:
+        if is_single_video:
             browser_cookies = ui.prompt_cookies()
+            engine = "cookies" if browser_cookies else "scraper"
+        else:
+            engine, api_key, browser_cookies = ui.prompt_connection_method(
+                is_download=(not is_inventory),
+                saved_key=config.get_api_key(),
+            )
 
         # 3. Resumo da Operação e Confirmação
         ui.show_summary(
@@ -181,6 +185,36 @@ def main():
 
             if is_single_video:
                 downloader.download_single_video(target_url)
+            elif engine == "api":
+                console.print(
+                    "[bold green]⚡ A consultar a YouTube Data API v3 para listar os vídeos do canal (sem rate-limit)...[/bold green]\n"
+                )
+                client = YouTubeAPIClient(api_key)
+
+                def download_api_progress(count: int, total: Optional[int], title: str):
+                    total_str = f"/{total}" if total else ""
+                    console.print(
+                        f"[cyan]A indexar via API [bold]#{count}{total_str}[/bold]:[/cyan] [dim]{title[:55]}[/dim]",
+                        end="\r",
+                    )
+
+                videos = client.fetch_videos(
+                    channel_input=target_url,
+                    date_range=date_range,
+                    progress_callback=download_api_progress,
+                )
+                console.print()
+
+                if not videos:
+                    console.print(
+                        f"\n[yellow]Nenhum vídeo encontrado para o período selecionado ({filter_label}).[/yellow]"
+                    )
+                else:
+                    console.print(
+                        f"\n[green]✔ Encontrados {len(videos)} vídeos via API v3. A iniciar transferência direta de MP4...[/green]\n"
+                    )
+                    video_urls = [v["url"] for v in videos]
+                    downloader.download_videos_list(video_urls)
             else:
                 downloader.download_channel(target_url)
 

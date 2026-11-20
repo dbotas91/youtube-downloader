@@ -90,6 +90,16 @@ class YouTubeDownloader:
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([normalized_url])
 
+    def download_videos_list(self, video_urls: list[str]):
+        """
+        Executa a transferência direta de uma lista de URLs de vídeos (previamente obtidos
+        via YouTube Data API v3), evitando o scraping do canal e rate-limits.
+        """
+        opts = self._get_ydl_options(apply_date_filter=False)
+
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download(video_urls)
+
     def download_single_video(self, video_input: str):
         """
         Executa a transferência de um vídeo específico.

@@ -42,16 +42,19 @@ Permite indexar e catalogar os vídeos do canal organizados em ordem cronológic
 - **CSV (`.csv`)** — Ideal para abrir diretamente no Excel ou Google Sheets (com codificação UTF-8-BOM) para filtros e ordenação manual.
 - **Todos (`md, json, csv`)** — Exporta os 3 ficheiros em simultâneo com nomes descritivos (ex: `catalogo_OSeuCanal_09-2024_a_12-2024.md`).
 
-### 🛡️ Proteção Anti Rate-Limit (Opções B e C)
+### 🛡️ Proteção Anti Rate-Limit (Disponível para Download e Catálogo)
 
-Para evitar bloqueios temporários de IP em canais médios ou grandes:
-1. **Opção B — YouTube Data API v3 (Oficial Google):**
+Tanto ao **descarregar vídeos (MP4)** como ao **gerar catálogos**, podes escolher entre três motores:
+1. **YouTube Data API v3 (Oficial Google):**
    - Usa a API oficial do Google Cloud (10.000 requisições/dia gratuitas para sempre).
    - Instantânea, fiável e com **0% de risco de rate-limit**.
+   - No descarregamento: descobre a lista de vídeos via API sem tocar na página do canal e transfere apenas os ficheiros encontrados.
    - Podes definir a chave no ficheiro `.env` (`YOUTUBE_API_KEY=sua_chave`) ou inseri-la diretamente na primeira execução quando solicitada no terminal.
-2. **Opção C — Sessão do Navegador (Cookies) + Paragem Antecipada:**
+2. **yt-dlp com Cookies do Navegador:**
    - Importa a tua sessão do Chrome, Firefox, Edge, Brave ou Chromium para o YouTube reconhecer a tua conta de proprietário do canal.
-   - Ativação automática de `break_on_reject: True`: para listagens por mês ou intervalo, interrompe a leitura assim que sai das datas selecionadas, poupando centenas de pedidos.
+   - Ativação automática de `break_on_reject: True`: para transferências e listagens por mês ou intervalo, interrompe a leitura assim que sai das datas selecionadas, poupando centenas de pedidos.
+3. **yt-dlp Anónimo (Padrão):**
+   - Ligação direta sem login nem chaves de API.
 
 #### 🔑 Como obter a Chave de API Gratuita (Opção B)
 1. Acede a [console.cloud.google.com](https://console.cloud.google.com/) com a tua conta Google.
