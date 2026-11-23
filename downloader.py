@@ -24,7 +24,9 @@ class YouTubeDownloader:
         self.date_range = date_range
         self.logger = logger
 
-    def _get_ydl_options(self, apply_date_filter: bool = True) -> dict:
+    def _get_ydl_options(
+        self, apply_date_filter: bool = True, is_playlist: bool = False
+    ) -> dict:
         out_template = str(self.destination_dir / config.OUTPUT_TEMPLATE)
 
         opts = {
@@ -34,8 +36,8 @@ class YouTubeDownloader:
             "outtmpl": out_template,
             # Registo de vídeos já descarregados (evita duplicados)
             "download_archive": str(config.ARCHIVE_FILE),
-            # Processar estritamente o vídeo/uploads e ignorar playlists aninhadas
-            "noplaylist": True,
+            # Se for uma playlist direta, permite descarregar a lista; caso contrário, ignora playlists aninhadas
+            "noplaylist": not is_playlist,
             "ignoreerrors": True,
             # Configuração do ffmpeg para remux em MP4
             "postprocessors": [
@@ -78,15 +80,17 @@ class YouTubeDownloader:
 
         return opts
 
-    def download_channel(self, channel_url: str):
+    def download_channel(self, channel_url: str, content_type: str = "videos"):
         """
-        Executa a transferência dos vídeos do canal (com ou sem filtro de data).
+        Executa a transferência dos vídeos do canal ou playlist (com ou sem filtro de data)
+        para o tipo de conteúdo pretendido ('videos', 'streams' ou 'both').
         """
-        normalized_url = config.normalize_channel_url(channel_url)
-        opts = self._get_ydl_options(apply_date_filter=True)
+        is_playlist = config.is_playlist_url(channel_url)
+        target_urls = config.get_channel_target_urls(channel_url, content_type)
+        opts = self._get_ydl_options(apply_date_filter=True, is_playlist=is_playlist)
 
         with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([normalized_url])
+            ydl.download(target_urls)
 
     def download_videos_list(self, video_urls: list[str]):
         """

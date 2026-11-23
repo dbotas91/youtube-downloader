@@ -73,6 +73,18 @@ def main():
             console.print("[red]Opção inválida![/red]")
             sys.exit(1)
 
+        # 1.1 Tipo de conteúdo (vídeos, lives ou ambos - excluindo shorts)
+        content_type = "both"
+        content_type_label = None
+        if not is_single_video:
+            if config.is_playlist_url(target_url):
+                content_type = "both"
+                content_type_label = "Todos os conteúdos da Playlist (Vídeos e Lives)"
+                if mode == "1":
+                    mode_name = "Playlist Completa (Tudo)"
+            else:
+                content_type, content_type_label = ui.prompt_content_type()
+
         # 2. Pasta de destino, autenticação e motor
         dest_dir = ui.prompt_destination_dir()
 
@@ -99,6 +111,7 @@ def main():
             is_inventory=is_inventory,
             export_format=export_format,
             use_api=(engine == "api"),
+            content_type_label=content_type_label,
         )
 
         confirm_msg = (
@@ -145,6 +158,7 @@ def main():
                 channel_url=target_url,
                 date_range=date_range,
                 progress_callback=progress_callback,
+                content_type=content_type,
             )
             console.print()
 
@@ -202,6 +216,7 @@ def main():
                     channel_input=target_url,
                     date_range=date_range,
                     progress_callback=download_api_progress,
+                    content_type=content_type,
                 )
                 console.print()
 
@@ -216,7 +231,7 @@ def main():
                     video_urls = [v["url"] for v in videos]
                     downloader.download_videos_list(video_urls)
             else:
-                downloader.download_channel(target_url)
+                downloader.download_channel(target_url, content_type=content_type)
 
             console.print()
             console.print(

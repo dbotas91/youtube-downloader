@@ -30,10 +30,12 @@ class ChannelInventory:
         self.cookie_browser = cookie_browser
         self.logger = logger
 
-    def _get_ydl_options(self, date_range: Optional[DateRange] = None) -> dict:
+    def _get_ydl_options(
+        self, date_range: Optional[DateRange] = None, is_playlist: bool = False
+    ) -> dict:
         opts: Dict[str, Any] = {
             "skip_download": True,
-            "noplaylist": True,
+            "noplaylist": not is_playlist,
             "ignoreerrors": True,
             "quiet": True,
             "no_warnings": True,
@@ -61,11 +63,15 @@ class ChannelInventory:
         channel_url: str,
         date_range: Optional[DateRange] = None,
         progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
+        content_type: str = "videos",
     ) -> List[Dict[str, Any]]:
         """
-        Extrai a lista de vídeos do canal (via YouTube Data API v3 se configurada, ou yt-dlp).
+        Extrai a lista de vídeos do canal ou playlist (via YouTube Data API v3 se configurada, ou yt-dlp).
+        Suporta filtrar por 'videos' (uploads regulares), 'streams' (lives) ou 'both'.
         Retorna a lista de vídeos já ordenada em ordem cronológica crescente.
         """
+        is_playlist = config.is_playlist_url(channel_url)
+
         # Se foi fornecida uma chave de API, utilizar a YouTube Data API v3 oficial (Opção B)
         if self.api_key:
             client = YouTubeAPIClient(self.api_key)
@@ -73,64 +79,82 @@ class ChannelInventory:
                 channel_input=channel_url,
                 date_range=date_range,
                 progress_callback=progress_callback,
+                content_type=content_type,
             )
 
         # Caso contrário, recorrer ao yt-dlp (com cookies e break_on_reject se configurados)
-        normalized_url = config.normalize_channel_url(channel_url)
-        opts = self._get_ydl_options(date_range=date_range)
+        target_urls = config.get_channel_target_urls(channel_url, content_type)
+        opts = self._get_ydl_options(date_range=date_range, is_playlist=is_playlist)
 
         videos: List[Dict[str, Any]] = []
+        seen_ids = set()
 
         with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(normalized_url, download=False)
-            if not info:
-                return []
-
-            raw_entries = info.get("entries") or []
-            entries_list = list(raw_entries)
-            total = len(entries_list)
             count = 0
-
-            for entry in entries_list:
-                count += 1
-                if not entry:
+            for url in target_urls:
+                is_stream_url = url.endswith("/streams")
+                info = ydl.extract_info(url, download=False)
+                if not info:
                     continue
 
-                upload_date = entry.get("upload_date")
-                if not upload_date and entry.get("timestamp"):
-                    upload_date = datetime.fromtimestamp(entry["timestamp"]).strftime(
-                        "%Y%m%d"
+                raw_entries = info.get("entries") or []
+                entries_list = list(raw_entries)
+                total = len(entries_list)
+
+                for entry in entries_list:
+                    if not entry:
+                        continue
+
+                    video_id = entry.get("id") or ""
+                    if not video_id or video_id in seen_ids:
+                        continue
+                    seen_ids.add(video_id)
+
+                    upload_date = entry.get("upload_date")
+                    if not upload_date and entry.get("timestamp"):
+                        upload_date = datetime.fromtimestamp(entry["timestamp"]).strftime(
+                            "%Y%m%d"
+                        )
+
+                    if not upload_date:
+                        continue
+
+                    count += 1
+                    title = entry.get("title") or "Sem título"
+                    duration = entry.get("duration")
+                    webpage_url = entry.get("webpage_url") or f"https://www.youtube.com/watch?v={video_id}"
+
+                    month = f"{upload_date[:4]}-{upload_date[4:6]}"
+                    upload_date_formatted = (
+                        f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
                     )
 
-                if not upload_date:
-                    continue
+                    is_live = (
+                        is_stream_url
+                        or entry.get("is_live")
+                        or entry.get("was_live")
+                        or entry.get("live_status") in ("is_live", "was_live", "post_live")
+                    )
+                    video_type = "Live" if is_live else "Vídeo"
 
-                video_id = entry.get("id") or ""
-                title = entry.get("title") or "Sem título"
-                duration = entry.get("duration")
-                url = entry.get("webpage_url") or f"https://www.youtube.com/watch?v={video_id}"
+                    videos.append(
+                        {
+                            "id": video_id,
+                            "title": title,
+                            "upload_date": upload_date,
+                            "upload_date_formatted": upload_date_formatted,
+                            "month": month,
+                            "url": webpage_url,
+                            "duration": duration,
+                            "duration_formatted": format_duration(duration),
+                            "view_count": entry.get("view_count"),
+                            "is_live": is_live,
+                            "video_type": video_type,
+                        }
+                    )
 
-                month = f"{upload_date[:4]}-{upload_date[4:6]}"
-                upload_date_formatted = (
-                    f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
-                )
-
-                videos.append(
-                    {
-                        "id": video_id,
-                        "title": title,
-                        "upload_date": upload_date,
-                        "upload_date_formatted": upload_date_formatted,
-                        "month": month,
-                        "url": url,
-                        "duration": duration,
-                        "duration_formatted": format_duration(duration),
-                        "view_count": entry.get("view_count"),
-                    }
-                )
-
-                if progress_callback:
-                    progress_callback(count, total, title)
+                    if progress_callback:
+                        progress_callback(count, total, title)
 
         # Ordenação estritamente em ordem crescente por data de publicação
         videos.sort(key=lambda v: (v["upload_date"], v["title"].lower()))
@@ -209,6 +233,7 @@ class ChannelInventory:
                 [
                     "Mês",
                     "Data de Publicação",
+                    "Tipo",
                     "Título",
                     "Duração",
                     "ID do Vídeo",
@@ -222,6 +247,7 @@ class ChannelInventory:
                         [
                             month,
                             v["upload_date_formatted"],
+                            v.get("video_type", "Vídeo"),
                             v["title"],
                             v["duration_formatted"],
                             v["id"],
@@ -265,13 +291,14 @@ class ChannelInventory:
             s = "s" if len(vids) != 1 else ""
             anchor = f"mes-{month.replace('-', '')}"
             lines.append(f'## <a id="{anchor}"></a>📅 {month} ({len(vids)} vídeo{s})\n\n')
-            lines.append("| # | Data | Título | Duração | Link |\n")
-            lines.append("|:---:|:---:|---|:---:|---|\n")
+            lines.append("| # | Data | Tipo | Título | Duração | Link |\n")
+            lines.append("|:---:|:---:|:---:|---|:---:|---|\n")
 
             for v in vids:
                 clean_title = v["title"].replace("|", "\\|")
+                vtype = v.get("video_type", "Vídeo")
                 lines.append(
-                    f"| {global_idx} | {v['upload_date_formatted']} | {clean_title} | "
+                    f"| {global_idx} | {v['upload_date_formatted']} | {vtype} | {clean_title} | "
                     f"{v['duration_formatted']} | [Ver no YouTube]({v['url']}) |\n"
                 )
                 global_idx += 1

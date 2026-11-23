@@ -213,15 +213,22 @@ class YouTubeAPIClient:
         channel_input: str,
         date_range: Optional[DateRange] = None,
         progress_callback: Optional[Callable[[int, Optional[int], str], None]] = None,
+        content_type: str = "videos",
     ) -> List[Dict[str, Any]]:
         """
         Recolhe todos os vídeos do canal via YouTube Data API v3.
         Aplica interrupção antecipada inteligente se houver date_range e devolve a lista
-        ordenada cronologicamente em ordem crescente.
+        ordenada cronologicamente em ordem crescente, filtrando por tipo de conteúdo
+        ('videos', 'streams' ou 'both').
         """
-        ch_id, ch_title, uploads_playlist_id = (
-            self.resolve_channel_uploads_playlist(channel_input)
-        )
+        if config.is_playlist_url(channel_input):
+            uploads_playlist_id = config.extract_playlist_id(channel_input)
+            ch_title = f"Playlist {uploads_playlist_id}"
+            ch_id = uploads_playlist_id
+        else:
+            ch_id, ch_title, uploads_playlist_id = (
+                self.resolve_channel_uploads_playlist(channel_input)
+            )
 
         videos: List[Dict[str, Any]] = []
         page_token: Optional[str] = None
@@ -289,6 +296,8 @@ class YouTubeAPIClient:
                             "duration": None,
                             "duration_formatted": "N/D",
                             "view_count": None,
+                            "is_live": False,
+                            "video_type": "Vídeo",
                         }
                     )
 
@@ -302,17 +311,24 @@ class YouTubeAPIClient:
             if not page_token:
                 break
 
-        # 2. Obter as durações dos vídeos em lotes de 50 (apenas 1 unidade de quota por lote de 50)
+        # 2. Obter as durações e detalhes de live em lotes de 50
         if videos:
             self._enrich_video_durations(videos)
 
-        # 3. Ordenação crescente estrita por data de publicação
+        # 3. Filtrar de acordo com o tipo de conteúdo escolhido ('videos', 'streams' ou 'both')
+        if content_type in ("streams", "live"):
+            videos = [v for v in videos if v.get("is_live")]
+        elif content_type == "videos":
+            videos = [v for v in videos if not v.get("is_live")]
+
+        # 4. Ordenação crescente estrita por data de publicação
         videos.sort(key=lambda v: (v["upload_date"], v["title"].lower()))
         return videos
 
     def _enrich_video_durations(self, videos: List[Dict[str, Any]]):
         """
-        Enriquece a lista de vídeos com as respetivas durações fazendo pedidos em lote de até 50 vídeos.
+        Enriquece a lista de vídeos com as respetivas durações e identificação de live stream
+        fazendo pedidos em lote de até 50 vídeos.
         """
         batch_size = 50
         for i in range(0, len(videos), batch_size):
@@ -323,21 +339,30 @@ class YouTubeAPIClient:
                 data = self._get(
                     "videos",
                     {
-                        "part": "contentDetails",
+                        "part": "contentDetails,snippet,liveStreamingDetails",
                         "id": ids_str,
                     },
                 )
-                duration_map = {}
+                info_map = {}
                 for item in data.get("items", []):
                     vid_id = item["id"]
-                    dur_iso = item["contentDetails"].get("duration")
+                    dur_iso = item.get("contentDetails", {}).get("duration")
                     seconds = parse_iso8601_duration(dur_iso)
-                    duration_map[vid_id] = seconds
+                    is_live = (
+                        "liveStreamingDetails" in item
+                        or item.get("snippet", {}).get("liveBroadcastContent")
+                        in ("live", "upcoming", "completed")
+                    )
+                    info_map[vid_id] = (seconds, is_live)
 
                 for v in batch:
-                    secs = duration_map.get(v["id"])
-                    v["duration"] = secs
-                    v["duration_formatted"] = format_duration(secs)
+                    info = info_map.get(v["id"])
+                    if info:
+                        secs, is_live = info
+                        v["duration"] = secs
+                        v["duration_formatted"] = format_duration(secs)
+                        v["is_live"] = is_live
+                        v["video_type"] = "Live" if is_live else "Vídeo"
             except Exception:
-                # Se falhar a obtenção de duração, mantém 'N/D' sem quebrar a listagem
+                # Se falhar a obtenção de metadados detalhados, mantém os valores padrão
                 pass
