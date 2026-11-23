@@ -74,10 +74,16 @@ def main():
             sys.exit(1)
 
         # 1.1 Tipo de conteúdo (vídeos, lives ou ambos - excluindo shorts)
-        content_type = "videos"
+        content_type = "both"
         content_type_label = None
         if not is_single_video:
-            content_type, content_type_label = ui.prompt_content_type()
+            if config.is_playlist_url(target_url):
+                content_type = "both"
+                content_type_label = "Todos os conteúdos da Playlist (Vídeos e Lives)"
+                if mode == "1":
+                    mode_name = "Playlist Completa (Tudo)"
+            else:
+                content_type, content_type_label = ui.prompt_content_type()
 
         # 2. Pasta de destino, autenticação e motor
         dest_dir = ui.prompt_destination_dir()

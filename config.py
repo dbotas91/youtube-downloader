@@ -343,6 +343,45 @@ def format_duration(seconds: Optional[int]) -> str:
         return "N/D"
 
 
+def extract_playlist_id(target_input: str) -> Optional[str]:
+    """
+    Extrai o ID da playlist se o input for um link ou ID de playlist do YouTube.
+    Suporta:
+      - 'https://www.youtube.com/playlist?list=PL123'
+      - 'https://www.youtube.com/watch?v=abc&list=PL123'
+      - 'PL1234567890abcdef' (IDs que começam por PL, UU, FL, LL, OLAK5uy_, etc.)
+    """
+    val = target_input.strip()
+    if "list=" in val:
+        import urllib.parse
+
+        parsed = urllib.parse.urlparse(val)
+        qs = urllib.parse.parse_qs(parsed.query)
+        if "list" in qs and qs["list"]:
+            return qs["list"][0]
+        m = re.search(r"[?&]list=([a-zA-Z0-9_\-]+)", val)
+        if m:
+            return m.group(1)
+
+    if re.match(r"^(PL|UU|FL|LL|OLAK5uy_|WL)[a-zA-Z0-9_\-]+$", val):
+        return val
+
+    return None
+
+
+def is_playlist_url(target_input: str) -> bool:
+    """Verifica se o input corresponde a uma playlist do YouTube."""
+    return extract_playlist_id(target_input) is not None
+
+
+def normalize_playlist_url(playlist_input: str) -> str:
+    """Normaliza o link para a página oficial da playlist."""
+    pid = extract_playlist_id(playlist_input)
+    if pid:
+        return f"https://www.youtube.com/playlist?list={pid}"
+    return playlist_input.strip()
+
+
 def get_channel_base_url(channel_input: str) -> str:
     """
     Extrai o URL base limpo do canal (sem sufixos como /videos, /streams, /shorts, /live).
@@ -352,6 +391,9 @@ def get_channel_base_url(channel_input: str) -> str:
       'https://www.youtube.com/@MeuCanal/streams' -> 'https://www.youtube.com/@MeuCanal'
       'https://www.youtube.com/channel/UC123/live' -> 'https://www.youtube.com/channel/UC123'
     """
+    if is_playlist_url(channel_input):
+        return normalize_playlist_url(channel_input)
+
     url = channel_input.strip()
     if url.startswith("@"):
         url = f"https://www.youtube.com/{url}"
@@ -374,12 +416,17 @@ def get_channel_target_urls(
     channel_input: str, content_type: str = "videos"
 ) -> list[str]:
     """
-    Gera as URLs do canal a processar consoante o tipo de conteúdo escolhido:
+    Gera as URLs do canal ou playlist a processar.
+    Se for uma playlist, devolve a URL da playlist diretamente.
+    Se for um canal, gera as URLs consoante o tipo de conteúdo escolhido:
     - 'videos': apenas vídeos gravados / uploads regulares (/videos)
     - 'streams' (ou 'live'): apenas transmissões ao vivo gravadas/ativas (/streams)
     - 'both': vídeos e transmissões ao vivo ([/videos, /streams])
     Shorts são excluídos por definição.
     """
+    if is_playlist_url(channel_input):
+        return [normalize_playlist_url(channel_input)]
+
     base = get_channel_base_url(channel_input)
     if content_type in ("streams", "live"):
         return [f"{base}/streams"]
@@ -468,11 +515,16 @@ def parse_month_range(start_str: str, end_str: str) -> tuple[str, str, str, str]
 
 def get_channel_slug(channel_input: str) -> str:
     """
-    Extrai um nome/identificador seguro para nomes de ficheiros a partir do link ou handle do canal.
+    Extrai um nome/identificador seguro para nomes de ficheiros a partir do link ou handle do canal/playlist.
     Exemplo: '@MeuCanal' -> 'MeuCanal'
              'https://www.youtube.com/@CanalX/videos' -> 'CanalX'
-             'https://www.youtube.com/@CanalX/streams' -> 'CanalX'
+             'https://www.youtube.com/playlist?list=PL123' -> 'playlist_PL123'
     """
+    pid = extract_playlist_id(channel_input)
+    if pid:
+        clean_pid = re.sub(r"[^\w\-]", "_", pid).strip("_")
+        return f"playlist_{clean_pid}"
+
     clean = get_channel_base_url(channel_input).rstrip("/")
     if "@" in clean:
         slug = clean.split("@")[-1].split("/")[0]

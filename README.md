@@ -10,7 +10,7 @@ Aplicação em Python para descarregar vídeos do teu canal do YouTube, organiza
 
 | Opção | Modo | Descrição |
 |:---:|------|-----------|
-| **1** | **Canal Completo** | Descarrega todos os uploads do canal |
+| **1** | **Canal ou Playlist** | Descarrega todos os uploads do canal ou todos os vídeos de uma playlist |
 | **2** | **Vídeo Individual** | Descarrega um vídeo específico por link ou ID |
 | **3** | **Filtrar por Ano** | Apenas vídeos de um ano (ex: `2024`) |
 | **4** | **Filtrar por Mês** | Apenas vídeos de um mês (ex: `2024-11` ou `11-2024`) |
@@ -64,6 +64,7 @@ Tanto ao **descarregar vídeos (MP4)** como ao **gerar catálogos**, podes escol
 5. Copia a chave gerada e cola-a quando a aplicação perguntar (podes optar por guardá-la automaticamente no ficheiro `.env`).
 
 Outras características:
+- **Suporte a Playlists** — permite processar playlists inteiras (perfeito para descarregar ou catalogar transmissões ao vivo não listadas ou privadas reunidas no YouTube Studio)
 - **Suporte a Vídeos e Lives** — escolha flexível entre apenas vídeos normais, apenas transmissões ao vivo gravadas (`/streams`) ou ambos (Shorts excluídos por padrão)
 - **Sem duplicados** — registo permanente em `downloaded_archive.txt`; vídeos já descarregados são ignorados automaticamente em execuções futuras
 - **Máxima qualidade (MP4)** — combina o melhor fluxo de vídeo e áudio via FFmpeg
@@ -142,7 +143,7 @@ python3 main.py
 
 | Campo | Exemplos válidos |
 |-------|----------------|
-| Canal | `@MeuCanal`, `https://www.youtube.com/@MeuCanal`, `MeuCanal` |
+| Canal ou Playlist | `@MeuCanal`, `https://www.youtube.com/@MeuCanal`, `https://www.youtube.com/playlist?list=PL...`, `PLrAXtmErZg...` |
 | Vídeo individual | `https://www.youtube.com/watch?v=abc123`, `abc123` |
 | Ano | `2024` |
 | Mês | `2024-11`, `11-2024`, `11/2024`, `11.2024` |

@@ -221,9 +221,14 @@ class YouTubeAPIClient:
         ordenada cronologicamente em ordem crescente, filtrando por tipo de conteúdo
         ('videos', 'streams' ou 'both').
         """
-        ch_id, ch_title, uploads_playlist_id = (
-            self.resolve_channel_uploads_playlist(channel_input)
-        )
+        if config.is_playlist_url(channel_input):
+            uploads_playlist_id = config.extract_playlist_id(channel_input)
+            ch_title = f"Playlist {uploads_playlist_id}"
+            ch_id = uploads_playlist_id
+        else:
+            ch_id, ch_title, uploads_playlist_id = (
+                self.resolve_channel_uploads_playlist(channel_input)
+            )
 
         videos: List[Dict[str, Any]] = []
         page_token: Optional[str] = None

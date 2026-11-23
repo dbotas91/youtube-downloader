@@ -30,10 +30,12 @@ class ChannelInventory:
         self.cookie_browser = cookie_browser
         self.logger = logger
 
-    def _get_ydl_options(self, date_range: Optional[DateRange] = None) -> dict:
+    def _get_ydl_options(
+        self, date_range: Optional[DateRange] = None, is_playlist: bool = False
+    ) -> dict:
         opts: Dict[str, Any] = {
             "skip_download": True,
-            "noplaylist": True,
+            "noplaylist": not is_playlist,
             "ignoreerrors": True,
             "quiet": True,
             "no_warnings": True,
@@ -64,10 +66,12 @@ class ChannelInventory:
         content_type: str = "videos",
     ) -> List[Dict[str, Any]]:
         """
-        Extrai a lista de vídeos do canal (via YouTube Data API v3 se configurada, ou yt-dlp).
+        Extrai a lista de vídeos do canal ou playlist (via YouTube Data API v3 se configurada, ou yt-dlp).
         Suporta filtrar por 'videos' (uploads regulares), 'streams' (lives) ou 'both'.
         Retorna a lista de vídeos já ordenada em ordem cronológica crescente.
         """
+        is_playlist = config.is_playlist_url(channel_url)
+
         # Se foi fornecida uma chave de API, utilizar a YouTube Data API v3 oficial (Opção B)
         if self.api_key:
             client = YouTubeAPIClient(self.api_key)
@@ -80,7 +84,7 @@ class ChannelInventory:
 
         # Caso contrário, recorrer ao yt-dlp (com cookies e break_on_reject se configurados)
         target_urls = config.get_channel_target_urls(channel_url, content_type)
-        opts = self._get_ydl_options(date_range=date_range)
+        opts = self._get_ydl_options(date_range=date_range, is_playlist=is_playlist)
 
         videos: List[Dict[str, Any]] = []
         seen_ids = set()

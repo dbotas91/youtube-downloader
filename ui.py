@@ -42,7 +42,12 @@ def prompt_download_mode() -> str:
     table.add_column("Descrição", style="dim")
 
     # Modos de download
-    table.add_row("1", "Download", "Canal Completo", "Descarrega todos os vídeos do canal (Tudo)")
+    table.add_row(
+        "1",
+        "Download",
+        "Canal ou Playlist",
+        "Descarrega todos os vídeos do canal ou playlist (Tudo)",
+    )
     table.add_row("2", "Download", "Vídeo Individual", "Descarrega um único vídeo por link ou ID")
     table.add_row("3", "Download", "Filtrar por Ano", "Descarrega apenas os vídeos de um ano (ex: 2024)")
     table.add_row("4", "Download", "Filtrar por Mês", "Descarrega os vídeos de um mês (ex: 2024-11 ou 11-2024)")
@@ -51,7 +56,12 @@ def prompt_download_mode() -> str:
     # Modos de listagem / catálogo
     table.add_row("6", "Listar", "Listar Mês Específico", "Exporta lista de vídeos de um mês (.md, .json ou .csv)")
     table.add_row("7", "Listar", "Listar Intervalo de Meses", "Exporta vídeos de um intervalo (ex: 09-2024 a 12-2024)")
-    table.add_row("8", "Listar", "Listar Todos Agrupados", "Exporta todos os vídeos do canal agrupados por mês")
+    table.add_row(
+        "8",
+        "Listar",
+        "Listar Todos Agrupados",
+        "Exporta todos os vídeos do canal ou playlist agrupados por mês",
+    )
 
     console.print(table)
 
@@ -64,16 +74,20 @@ def prompt_download_mode() -> str:
 
 
 def prompt_channel_url() -> str:
-    console.print("\n[bold]2. Canal do YouTube[/bold]")
+    console.print("\n[bold]2. Canal ou Playlist do YouTube[/bold]")
     console.print(
-        "[dim]Exemplo: [cyan]@OSeuCanal[/cyan] ou [cyan]https://www.youtube.com/@OSeuCanal[/cyan][/dim]"
+        "[dim]Exemplos:\n"
+        "  • Canal: [cyan]@OSeuCanal[/cyan] ou [cyan]https://www.youtube.com/@OSeuCanal[/cyan]\n"
+        "  • Playlist: [cyan]https://www.youtube.com/playlist?list=PL...[/cyan] (ideal para lives não listadas ou privadas)[/dim]"
     )
 
     while True:
-        canal = Prompt.ask("[yellow]Indica o identificador ou link do canal[/yellow]")
-        if canal.strip():
-            return canal.strip()
-        console.print("[red]O canal não pode estar vazio![/red]")
+        alvo = Prompt.ask(
+            "[yellow]Indica o @canal, link do canal ou link da playlist[/yellow]"
+        )
+        if alvo.strip():
+            return alvo.strip()
+        console.print("[red]O campo não pode estar vazio![/red]")
 
 
 def prompt_content_type() -> Tuple[str, str]:
@@ -486,6 +500,8 @@ def show_summary(
         else ""
     )
 
+    alvo_tipo = "Playlist" if config.is_playlist_url(target) else "Canal"
+
     if is_inventory:
         motor_desc = (
             "YouTube Data API v3 Oficial (Google Cloud — Sem Rate-Limit)"
@@ -495,7 +511,7 @@ def show_summary(
         resumo = (
             f"[bold cyan]Ação:[/bold cyan] Listar e Exportar Catálogo\n"
             f"[bold cyan]Modo:[/bold cyan] {mode_name}\n"
-            f"[bold cyan]Canal:[/bold cyan] {target}\n"
+            f"[bold cyan]{alvo_tipo}:[/bold cyan] {target}\n"
             f"{tipo_conteudo_linha}"
             f"[bold cyan]Motor:[/bold cyan] {motor_desc}\n"
             f"[bold cyan]Filtro:[/bold cyan] {filter_label}\n"
@@ -512,7 +528,7 @@ def show_summary(
         resumo = (
             f"[bold cyan]Ação:[/bold cyan] Descarregar Vídeos (MP4)\n"
             f"[bold cyan]Modo:[/bold cyan] {mode_name}\n"
-            f"[bold cyan]Alvo:[/bold cyan] {target}\n"
+            f"[bold cyan]{alvo_tipo}:[/bold cyan] {target}\n"
             f"{tipo_conteudo_linha}"
             f"[bold cyan]Motor:[/bold cyan] {motor_desc}\n"
             f"[bold cyan]Filtro de Data:[/bold cyan] {filter_label}\n"
