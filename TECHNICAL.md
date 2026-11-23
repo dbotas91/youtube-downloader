@@ -26,26 +26,129 @@ youtube-downloader/
 
 ```mermaid
 flowchart TD
-    A["./run.sh"] --> B["main.py · main()"]
+    A["./run.sh / run.bat"] --> B["main.py · main()"]
     B --> C["ui · prompt_download_mode()"]
-    C -->|modo 1| D["prompt_channel_url()"]
+    C -->|modo 1| D["prompt_channel_url() [Canal ou Playlist]"]
     C -->|modo 2| E["prompt_video_url()"]
     C -->|modos 3-5| F["prompt_channel_url() +\nprompt_filter_year/month/day()"]
     C -->|modos 6-8| N["prompt_channel_url() +\nprompt_filter_month/range() +\nprompt_export_format()"]
-    D & E & F --> G1["prompt_destination_dir() +\nprompt_connection_method(is_download=True)"]
-    N --> G2["prompt_destination_dir() +\nprompt_connection_method(is_download=False)"]
-    G1 & G2 --> I["show_summary() + Confirm"]
+    D & F & N --> CT["prompt_content_type()\n[Vídeos / Lives / Ambos]"]
+    CT & E --> G["prompt_destination_dir() [Discos/Pastas] +\nprompt_connection_method()"]
+    G --> I["show_summary() + Confirm"]
     I -->|modos 1, 3-5| J["YouTubeDownloader()"]
-    I -->|modo 2| J2["YouTubeDownloader()\n(prompt_cookies apenas)"]
+    I -->|modo 2| J2["YouTubeDownloader()\n(apenas cookies se privado)"]
     I -->|modos 6-8| O["ChannelInventory()"]
     J -->|engine=api| JA["YouTubeAPIClient.fetch_videos()\n+ download_videos_list()"]
-    J -->|engine=cookies ou scraper| L["download_channel()\n(com break_on_reject: True)"]
+    J -->|engine=cookies ou scraper| L["download_channel()\n(suporte a /videos, /streams e playlists)"]
     J2 --> K["download_single_video()"]
     JA & L & K --> M["yt_dlp.YoutubeDL.download()"]
     O -->|engine=api| P1["YouTubeAPIClient.fetch_videos()\n(0% scraping, ultra rápido)"]
-    O -->|engine=cookies ou scraper| P2["yt-dlp extract_info()\n(com break_on_reject: True)"]
+    O -->|engine=cookies ou scraper| P2["yt-dlp extract_info()\n(suporte a /videos, /streams e playlists)"]
     P1 & P2 --> Q["filter_month/range() +\ngroup_by_month() (ordem crescente)"]
     Q --> R["export_inventory()\n(.md, .json, .csv)"]
+```
+
+### Diagrama de Classes e Relações
+
+O diagrama seguinte ilustra as classes centrais do sistema, os seus principais atributos e métodos, e o relacionamento com os módulos auxiliares:
+
+```mermaid
+classDiagram
+    direction TB
+
+    class MainModule {
+        <<entrypoint>>
+        +main() void
+    }
+
+    class UIModule {
+        <<utility>>
+        +show_welcome_banner() void
+        +prompt_download_mode() str
+        +prompt_channel_url() str
+        +prompt_content_type() tuple
+        +prompt_video_url() str
+        +prompt_destination_dir() Path
+        +prompt_connection_method(is_download, saved_key) tuple
+        +show_summary(...) void
+        +show_inventory_results(grouped, exported_files, filter_label) void
+        +print_progress_hook(d) void
+    }
+
+    class ConfigModule {
+        <<utility>>
+        +bool IS_WINDOWS
+        +bool IS_WSL
+        +Path BASE_DIR
+        +Path DEFAULT_DOWNLOAD_DIR
+        +Path ARCHIVE_FILE
+        +get_channel_base_url(channel_input) str
+        +get_channel_target_urls(channel_input, content_type) list~str~
+        +is_playlist_url(target_input) bool
+        +extract_playlist_id(target_input) str
+        +normalize_playlist_url(playlist_input) str
+        +normalize_channel_url(channel_input, content_type) str
+        +normalize_video_url(video_input) str
+        +get_channel_slug(channel_input) str
+        +get_available_storage_locations() list~dict~
+        +normalize_destination_path(raw_input) Path
+        +get_js_runtimes() dict
+        +is_ffmpeg_installed() bool
+    }
+
+    class YouTubeDownloader {
+        +Path destination_dir
+        +Callable progress_callback
+        +str cookie_browser
+        +DateRange date_range
+        +Any logger
+        -_get_ydl_options(apply_date_filter, is_playlist) dict
+        +download_channel(channel_url, content_type) void
+        +download_videos_list(video_urls) void
+        +download_single_video(video_input) void
+    }
+
+    class ChannelInventory {
+        +str api_key
+        +str cookie_browser
+        +Any logger
+        -_get_ydl_options(date_range, is_playlist) dict
+        +load_channel_videos(channel_url, date_range, progress_callback, content_type) list~dict~
+        +filter_month(videos, month_label) list~dict~
+        +filter_range(videos, start_month, end_month) list~dict~
+        +group_by_month(videos) dict
+        +export_inventory(grouped, dest_dir, channel_url, filter_desc, file_suffix, export_format) list~Path~
+        +export_json(grouped, output_file, channel_name, filter_desc) Path
+        +export_csv(grouped, output_file) Path
+        +export_markdown(grouped, output_file, channel_name, filter_desc) Path
+    }
+
+    class YouTubeAPIClient {
+        +str api_key
+        -_get(endpoint, params) dict
+        +resolve_channel_uploads_playlist(channel_input) tuple
+        +fetch_videos(channel_input, date_range, progress_callback, content_type) list~dict~
+        -_enrich_video_durations(videos) void
+    }
+
+    class RichYDLLogger {
+        +Console console
+        +debug(msg) void
+        +info(msg) void
+        +warning(msg) void
+        +error(msg) void
+    }
+
+    MainModule ..> UIModule : solicita escolhas ao utilizador
+    MainModule ..> ConfigModule : regras de normalização e ambiente
+    MainModule ..> YouTubeDownloader : orquestra descarregamento
+    MainModule ..> ChannelInventory : orquestra inventário
+    MainModule ..> YouTubeAPIClient : consulta API direta se aplicável
+    ChannelInventory ..> YouTubeAPIClient : delega se api_key configurada
+    ChannelInventory ..> ConfigModule : consulta URLs, datas e runtimes
+    ChannelInventory ..> RichYDLLogger : redireciona logs yt-dlp
+    YouTubeDownloader ..> ConfigModule : consulta histórico, URLs e caminhos
+    YouTubeDownloader ..> RichYDLLogger : redireciona logs yt-dlp
 ```
 
 ---
