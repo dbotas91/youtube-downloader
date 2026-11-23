@@ -78,15 +78,16 @@ class YouTubeDownloader:
 
         return opts
 
-    def download_channel(self, channel_url: str):
+    def download_channel(self, channel_url: str, content_type: str = "videos"):
         """
-        Executa a transferência dos vídeos do canal (com ou sem filtro de data).
+        Executa a transferência dos vídeos do canal (com ou sem filtro de data)
+        para o tipo de conteúdo pretendido ('videos', 'streams' ou 'both').
         """
-        normalized_url = config.normalize_channel_url(channel_url)
+        target_urls = config.get_channel_target_urls(channel_url, content_type)
         opts = self._get_ydl_options(apply_date_filter=True)
 
         with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([normalized_url])
+            ydl.download(target_urls)
 
     def download_videos_list(self, video_urls: list[str]):
         """

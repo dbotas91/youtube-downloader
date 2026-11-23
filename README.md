@@ -64,9 +64,10 @@ Tanto ao **descarregar vídeos (MP4)** como ao **gerar catálogos**, podes escol
 5. Copia a chave gerada e cola-a quando a aplicação perguntar (podes optar por guardá-la automaticamente no ficheiro `.env`).
 
 Outras características:
+- **Suporte a Vídeos e Lives** — escolha flexível entre apenas vídeos normais, apenas transmissões ao vivo gravadas (`/streams`) ou ambos (Shorts excluídos por padrão)
 - **Sem duplicados** — registo permanente em `downloaded_archive.txt`; vídeos já descarregados são ignorados automaticamente em execuções futuras
 - **Máxima qualidade (MP4)** — combina o melhor fluxo de vídeo e áudio via FFmpeg
-- **Apenas uploads próprios** — foca-se na aba `/videos` do canal, ignorando playlists de terceiros
+- **Apenas uploads próprios** — foca-se nas abas `/videos` e `/streams` do canal, ignorando playlists de terceiros
 - **Vídeos privados / não listados** — suporte a importação de cookies de sessão do browser (Chrome, Firefox, Edge, etc.)
 - **Anti rate-limit** — pausa automática entre pedidos para não ser bloqueado pelo YouTube
 - **Suporte Multiplataforma (Windows Nativo, WSL e Linux)** — funciona diretamente no Windows (`run.bat` / `run.ps1`) e no Linux/WSL (`run.sh`)

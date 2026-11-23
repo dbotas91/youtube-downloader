@@ -76,6 +76,58 @@ def prompt_channel_url() -> str:
         console.print("[red]O canal não pode estar vazio![/red]")
 
 
+def prompt_content_type() -> Tuple[str, str]:
+    """
+    Pergunta ao utilizador que tipo de conteúdo pretende descarregar ou listar:
+    1. Apenas Vídeos (Uploads normais gravados)
+    2. Apenas Lives / Diretos (Transmissões ao vivo gravadas da aba /streams)
+    3. Ambos (Vídeos + Lives)
+    Devolve: (content_type: 'videos' | 'streams' | 'both', label: str)
+    """
+    console.print("\n[bold]Tipo de Conteúdo a Abranger[/bold]")
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Opção", style="cyan", width=6)
+    table.add_column("Conteúdo", style="bold white", width=22)
+    table.add_column("Origem / Aba", style="yellow", width=22)
+    table.add_column("Descrição", style="dim")
+
+    table.add_row(
+        "1",
+        "Apenas Vídeos",
+        "/videos",
+        "Vídeos regulares enviados para o canal (Padrão)",
+    )
+    table.add_row(
+        "2",
+        "Apenas Lives",
+        "/streams",
+        "Transmissões ao vivo gravadas e ativas",
+    )
+    table.add_row(
+        "3",
+        "Ambos",
+        "/videos + /streams",
+        "Todos os vídeos normais e todas as transmissões ao vivo",
+    )
+
+    console.print(table)
+    console.print(
+        "[dim]Nota: Os vídeos 'Shorts' (/shorts) ficam excluídos por padrão.[/dim]"
+    )
+
+    escolha = Prompt.ask(
+        "[yellow]Escolhe o tipo de conteúdo pretendido[/yellow]",
+        choices=["1", "2", "3"],
+        default="1",
+    )
+
+    if escolha == "2":
+        return "streams", "Apenas Lives / Diretos (/streams)"
+    elif escolha == "3":
+        return "both", "Ambos: Vídeos e Lives (/videos + /streams)"
+    return "videos", "Apenas Vídeos (/videos)"
+
+
 def prompt_video_url() -> str:
     console.print("\n[bold]2. Vídeo do YouTube[/bold]")
     console.print(
@@ -417,6 +469,7 @@ def show_summary(
     is_inventory: bool = False,
     export_format: Optional[str] = None,
     use_api: bool = False,
+    content_type_label: Optional[str] = None,
 ):
     console.print("\n[bold]5. Resumo da Operação[/bold]")
 
@@ -427,6 +480,11 @@ def show_summary(
         "all": "Todos (.md, .json, .csv)",
     }
     fmt_text = format_labels.get(export_format, export_format or "N/A")
+    tipo_conteudo_linha = (
+        f"[bold cyan]Tipo de Conteúdo:[/bold cyan] {content_type_label}\n"
+        if content_type_label
+        else ""
+    )
 
     if is_inventory:
         motor_desc = (
@@ -438,6 +496,7 @@ def show_summary(
             f"[bold cyan]Ação:[/bold cyan] Listar e Exportar Catálogo\n"
             f"[bold cyan]Modo:[/bold cyan] {mode_name}\n"
             f"[bold cyan]Canal:[/bold cyan] {target}\n"
+            f"{tipo_conteudo_linha}"
             f"[bold cyan]Motor:[/bold cyan] {motor_desc}\n"
             f"[bold cyan]Filtro:[/bold cyan] {filter_label}\n"
             f"[bold cyan]Ordenação:[/bold cyan] Cronológica crescente (antigo ➔ recente)\n"
@@ -454,6 +513,7 @@ def show_summary(
             f"[bold cyan]Ação:[/bold cyan] Descarregar Vídeos (MP4)\n"
             f"[bold cyan]Modo:[/bold cyan] {mode_name}\n"
             f"[bold cyan]Alvo:[/bold cyan] {target}\n"
+            f"{tipo_conteudo_linha}"
             f"[bold cyan]Motor:[/bold cyan] {motor_desc}\n"
             f"[bold cyan]Filtro de Data:[/bold cyan] {filter_label}\n"
             f"[bold cyan]Pasta Base:[/bold cyan] {dest_dir}\n"

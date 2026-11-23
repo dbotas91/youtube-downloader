@@ -63,7 +63,9 @@ Responsável por constantes globais e validação/normalização de entradas de 
 | `ARCHIVE_FILE` | `Path` | `downloaded_archive.txt` (histórico de IDs) |
 | `ENV_FILE` | `Path` | `.env` (guarda localmente `YOUTUBE_API_KEY`) |
 | `OUTPUT_TEMPLATE` | `str` | Template yt-dlp: `%(upload_date>%Y-%m\|sem-data)s/%(title)s [%(id)s].%(ext)s` |
-| `normalize_channel_url(str)` | função | Normaliza o input do canal para `https://www.youtube.com/@X/videos` |
+| `get_channel_base_url(str)` | função | Devolve URL base limpo do canal sem abas `/videos`, `/streams`, etc. |
+| `get_channel_target_urls(str, str)` | função | Gera as URLs alvo do canal consoante o tipo (`videos`, `streams`, `both`) |
+| `normalize_channel_url(str, str)` | função | Normaliza o input do canal para a aba de destino pretendida |
 | `normalize_video_url(str)` | função | Normaliza ID ou link de vídeo individual |
 | `parse_year(str)` | função | Devolve `(start_YYYYMMDD, end_YYYYMMDD, label)` |
 | `parse_month(str)` | função | Aceita `AAAA-MM`, `MM-AAAA`, `MM/AAAA` ou `MM.AAAA`, trata anos bissextos |

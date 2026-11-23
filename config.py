@@ -343,14 +343,16 @@ def format_duration(seconds: Optional[int]) -> str:
         return "N/D"
 
 
-def normalize_channel_url(channel_input: str) -> str:
+def get_channel_base_url(channel_input: str) -> str:
     """
-    Garante que o link do canal aponta estritamente para a aba de uploads diretos (/videos),
-    evitando playlists ou conteúdos de terceiros.
+    Extrai o URL base limpo do canal (sem sufixos como /videos, /streams, /shorts, /live).
+    Exemplos:
+      '@MeuCanal' -> 'https://www.youtube.com/@MeuCanal'
+      'https://www.youtube.com/@MeuCanal/videos' -> 'https://www.youtube.com/@MeuCanal'
+      'https://www.youtube.com/@MeuCanal/streams' -> 'https://www.youtube.com/@MeuCanal'
+      'https://www.youtube.com/channel/UC123/live' -> 'https://www.youtube.com/channel/UC123'
     """
     url = channel_input.strip()
-
-    # Se o utilizador apenas digitou o handle (ex: @OSeuCanal)
     if url.startswith("@"):
         url = f"https://www.youtube.com/{url}"
     elif not url.startswith("http://") and not url.startswith("https://"):
@@ -359,18 +361,41 @@ def normalize_channel_url(channel_input: str) -> str:
         else:
             url = f"https://www.youtube.com/{url}"
 
-    # Remove barras finais
     url = url.rstrip("/")
+    for suffix in ["/videos", "/streams", "/shorts", "/live", "/featured", "/playlists"]:
+        if url.endswith(suffix):
+            url = url[: -len(suffix)]
+            break
 
-    # Se ainda não apontar para /videos, garante que aponta
-    if (
-        not url.endswith("/videos")
-        and not url.endswith("/shorts")
-        and not url.endswith("/streams")
-    ):
-        url = f"{url}/videos"
+    return url.rstrip("/")
 
-    return url
+
+def get_channel_target_urls(
+    channel_input: str, content_type: str = "videos"
+) -> list[str]:
+    """
+    Gera as URLs do canal a processar consoante o tipo de conteúdo escolhido:
+    - 'videos': apenas vídeos gravados / uploads regulares (/videos)
+    - 'streams' (ou 'live'): apenas transmissões ao vivo gravadas/ativas (/streams)
+    - 'both': vídeos e transmissões ao vivo ([/videos, /streams])
+    Shorts são excluídos por definição.
+    """
+    base = get_channel_base_url(channel_input)
+    if content_type in ("streams", "live"):
+        return [f"{base}/streams"]
+    elif content_type == "both":
+        return [f"{base}/videos", f"{base}/streams"]
+    return [f"{base}/videos"]
+
+
+def normalize_channel_url(
+    channel_input: str, content_type: str = "videos"
+) -> str:
+    """
+    Devolve o primeiro URL normalizado do canal de acordo com o tipo de conteúdo.
+    """
+    urls = get_channel_target_urls(channel_input, content_type)
+    return urls[0]
 
 
 def normalize_video_url(video_input: str) -> str:
@@ -446,12 +471,9 @@ def get_channel_slug(channel_input: str) -> str:
     Extrai um nome/identificador seguro para nomes de ficheiros a partir do link ou handle do canal.
     Exemplo: '@MeuCanal' -> 'MeuCanal'
              'https://www.youtube.com/@CanalX/videos' -> 'CanalX'
+             'https://www.youtube.com/@CanalX/streams' -> 'CanalX'
     """
-    import re
-
-    clean = channel_input.strip().rstrip("/")
-    if "/videos" in clean:
-        clean = clean.rsplit("/videos", 1)[0]
+    clean = get_channel_base_url(channel_input).rstrip("/")
     if "@" in clean:
         slug = clean.split("@")[-1].split("/")[0]
     else:
